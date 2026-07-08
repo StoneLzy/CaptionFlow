@@ -12,7 +12,11 @@ from app.core.progress import StageName, StageStatus
 from app.jobs.names import sanitize_job_display_name
 from app.jobs.repository import JobRepository
 from app.jobs.schemas import JobCreate, JobStatus, MediaSource, OutputFormat, ProviderSettings, TranscribeAudioSource
-from app.jobs.export_outputs import collect_transcript_outputs, wants_format
+from app.jobs.export_outputs import (
+    collect_transcript_outputs,
+    export_final_outputs,
+    wants_format,
+)
 from app.jobs.failure import JobCancelledError, mark_job_failure
 from app.media.mux import copy_as_input_mp4, find_track_file, mux_video_audio_stream_copy
 from app.media.ytdlp import download_media
@@ -71,6 +75,69 @@ class JobRunner:
             model=settings.model or defaults.model,
         )
 
+    def existing_download_outputs(self, job_dir: Path) -> dict[str, str] | None:
+        input_mp4 = job_dir / "input.mp4"
+        if input_mp4.is_file():
+            outputs: dict[str, str] = {"input_mp4": str(input_mp4)}
+            log_path = job_dir / "ytdlp.log"
+            if log_path.is_file():
+                outputs["ytdlp_log"] = str(log_path)
+            return outputs
+
+        video_path = find_track_file(job_dir, "input_video")
+        audio_path = find_track_file(job_dir, "input_audio")
+        if video_path is not None and audio_path is not None:
+            outputs = {
+                "input_video": str(video_path),
+                "input_audio": str(audio_path),
+            }
+            log_path = job_dir / "ytdlp.log"
+            if log_path.is_file():
+                outputs["ytdlp_log"] = str(log_path)
+            return outputs
+        return None
+
+    def existing_transcript_path(self, job_dir: Path, config: JobCreate) -> Path | None:
+        output_prefix = job_dir / "transcript"
+        pipeline_requires_srt = config.merge_settings.enabled or config.enable_translation
+        srt_path = output_prefix.with_suffix(".srt")
+        if pipeline_requires_srt:
+            return srt_path if srt_path.is_file() else None
+        for suffix in (".srt", ".json", ".txt", ".md"):
+            path = output_prefix.with_suffix(suffix)
+            if path.is_file():
+                return path
+        return None
+
+    def existing_subtitle_outputs(self, job_dir: Path, config: JobCreate) -> dict[str, str] | None:
+        outputs: dict[str, str] = {}
+        required: list[tuple[Path, str]] = []
+
+        if config.merge_settings.enabled and wants_format(config, OutputFormat.SRT):
+            required.append((job_dir / "merged.srt", "merged_srt"))
+
+        if config.enable_translation:
+            if wants_format(config, OutputFormat.SRT):
+                required.append((job_dir / "translation.srt", "translation_srt"))
+            if wants_format(config, OutputFormat.TXT):
+                required.append((job_dir / "bilingual.txt", "bilingual_txt"))
+            if wants_format(config, OutputFormat.MD):
+                required.append((job_dir / "bilingual.md", "bilingual_md"))
+
+        if not required:
+            return None
+
+        for path, key in required:
+            if not path.is_file():
+                return None
+            outputs[key] = str(path)
+        return outputs
+
+    def finalize_outputs(self, job_id: UUID, outputs: dict[str, str]) -> dict[str, str]:
+        job = self.repo.get_job(job_id)
+        job_dir = self.data_dir / "jobs" / str(job_id)
+        return export_final_outputs(outputs=outputs, config=job.config, job_dir=job_dir)
+
     def resolve_transcription_source(self, job_dir: Path, config: JobCreate) -> Path:
         mux = config.track_mux_settings
         if not mux.enabled:
@@ -94,6 +161,7 @@ class JobRunner:
         raise FileNotFoundError("Muxed video not found for transcription")
 
     def run_download(self, job_id: UUID, config: JobCreate) -> dict[str, str]:
+        job_dir = self.data_dir / "jobs" / str(job_id)
         if config.media_source == MediaSource.UPLOAD:
             self.repo.update_stage(
                 job_id,
@@ -104,11 +172,21 @@ class JobRunner:
             )
             return {}
 
+        existing_outputs = self.existing_download_outputs(job_dir)
+        if existing_outputs is not None:
+            self.repo.update_stage(
+                job_id,
+                StageName.DOWNLOAD,
+                StageStatus.COMPLETED,
+                detail="Using existing downloaded media",
+                percent=100,
+            )
+            return existing_outputs
+
         url = config.ytdlp_settings.url.strip()
         if not url:
             raise ValueError("yt-dlp URL is required")
 
-        job_dir = self.data_dir / "jobs" / str(job_id)
         self.repo.update_stage(
             job_id,
             StageName.DOWNLOAD,
@@ -129,7 +207,7 @@ class JobRunner:
             "download_title": result.title,
             "ytdlp_log": str(job_dir / "ytdlp.log"),
         }
-        if result.title:
+        if result.title and not config.job_name.strip():
             try:
                 display_name = sanitize_job_display_name(result.title)
                 self.repo.update_filename(job_id, display_name)
@@ -157,6 +235,20 @@ class JobRunner:
         input_mp4 = job_dir / "input.mp4"
         video_path = find_track_file(job_dir, "input_video")
         audio_path = find_track_file(job_dir, "input_audio")
+        muxed_path = job_dir / "muxed.mp4"
+
+        if mux.enabled and muxed_path.is_file() and input_mp4.is_file():
+            self.repo.update_stage(
+                job_id,
+                StageName.TRACK_MUX,
+                StageStatus.COMPLETED,
+                detail="Using existing muxed video",
+                percent=100,
+            )
+            return {
+                "muxed_mp4": str(muxed_path),
+                "input_mp4": str(input_mp4),
+            }
 
         if video_path is None or audio_path is None:
             if input_mp4.exists():
@@ -197,7 +289,6 @@ class JobRunner:
             StageStatus.RUNNING,
             detail="Muxing video and audio tracks",
         )
-        muxed_path = job_dir / "muxed.mp4"
         mux_video_audio_stream_copy(
             video_path,
             audio_path,
@@ -309,6 +400,9 @@ class JobRunner:
     def transcribe_video(self, job_id: UUID, media_path: Path | None = None) -> Path:
         job_dir = self.data_dir / "jobs" / str(job_id)
         job = self.repo.get_job(job_id)
+        existing = self.existing_transcript_path(job_dir, job.config)
+        if existing is not None:
+            return existing
         input_path = media_path or self.resolve_transcription_source(job_dir, job.config)
         audio_path = input_path
         if not is_audio_file(input_path):
@@ -416,6 +510,28 @@ class JobRunner:
     async def process_subtitles(self, job_id: UUID, srt_path: Path) -> dict[str, str]:
         job_dir = self.data_dir / "jobs" / str(job_id)
         job = self.repo.get_job(job_id)
+        existing_outputs = self.existing_subtitle_outputs(job_dir, job.config)
+        if existing_outputs is not None:
+            self.repo.update_stage(
+                job_id,
+                StageName.MERGE,
+                StageStatus.COMPLETED if job.config.merge_settings.enabled else StageStatus.SKIPPED,
+                detail="Using existing merged subtitles"
+                if job.config.merge_settings.enabled
+                else "Merge disabled",
+                percent=100,
+            )
+            self.repo.update_stage(
+                job_id,
+                StageName.TRANSLATION,
+                StageStatus.COMPLETED if job.config.enable_translation else StageStatus.SKIPPED,
+                detail="Using existing translation"
+                if job.config.enable_translation
+                else "Translation disabled",
+                percent=100,
+            )
+            return existing_outputs
+
         source_segments = parse_srt(srt_path.read_text(encoding="utf-8"))
         segments = (
             merge_segments(source_segments, job.config.merge_settings)
@@ -528,6 +644,8 @@ class JobRunner:
             outputs = await self.process_subtitles(job_id, srt_path)
             merged_outputs = dict(self.repo.get_job(job_id).outputs)
             merged_outputs.update(outputs)
+            self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.RUNNING, detail="Exporting outputs")
+            merged_outputs = self.finalize_outputs(job_id, merged_outputs)
             self.repo.set_outputs(job_id, merged_outputs)
             self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.COMPLETED, percent=100)
             self.repo.update_status(job_id, JobStatus.COMPLETED)
@@ -567,6 +685,8 @@ class JobRunner:
                 percent=100,
             )
             outputs = await self.process_subtitles(job_id, source_path)
+            self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.RUNNING, detail="Exporting outputs")
+            outputs = self.finalize_outputs(job_id, outputs)
             self.repo.set_outputs(job_id, outputs)
             self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.COMPLETED, percent=100)
             self.repo.update_status(job_id, JobStatus.COMPLETED)
@@ -596,19 +716,33 @@ class JobRunner:
             mux_outputs = self.run_track_mux(job_id, job_dir, job.config)
             self.ensure_job_active(job_id)
             transcription_source = self.resolve_transcription_source(job_dir, job.config)
-            self.repo.update_stage(
-                job_id, StageName.TRANSCRIPTION, StageStatus.RUNNING, detail="Transcribing audio"
-            )
-            media_duration_seconds = probe_media_duration_seconds(transcription_source)
-            with self.estimated_transcription_progress(job_id, media_duration_seconds):
-                transcript_path = self.transcribe_video(job_id, transcription_source)
-            self.repo.update_stage(
-                job_id,
-                StageName.TRANSCRIPTION,
-                StageStatus.COMPLETED,
-                detail="Transcription complete",
-                percent=100,
-            )
+            existing_transcript = self.existing_transcript_path(job_dir, job.config)
+            if existing_transcript is not None:
+                transcript_path = existing_transcript
+                self.repo.update_stage(
+                    job_id,
+                    StageName.TRANSCRIPTION,
+                    StageStatus.COMPLETED,
+                    detail="Using existing transcript",
+                    percent=100,
+                )
+            else:
+                self.repo.update_stage(
+                    job_id,
+                    StageName.TRANSCRIPTION,
+                    StageStatus.RUNNING,
+                    detail="Transcribing audio",
+                )
+                media_duration_seconds = probe_media_duration_seconds(transcription_source)
+                with self.estimated_transcription_progress(job_id, media_duration_seconds):
+                    transcript_path = self.transcribe_video(job_id, transcription_source)
+                self.repo.update_stage(
+                    job_id,
+                    StageName.TRANSCRIPTION,
+                    StageStatus.COMPLETED,
+                    detail="Transcription complete",
+                    percent=100,
+                )
             outputs = collect_transcript_outputs(job_dir, job.config)
             outputs.update(download_outputs)
             outputs.update(mux_outputs)
@@ -630,6 +764,8 @@ class JobRunner:
                     detail="Translation disabled",
                     percent=100,
                 )
+            self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.RUNNING, detail="Exporting outputs")
+            outputs = self.finalize_outputs(job_id, outputs)
             self.repo.set_outputs(job_id, outputs)
             self.repo.update_stage(job_id, StageName.EXPORT, StageStatus.COMPLETED, percent=100)
             self.repo.update_status(job_id, JobStatus.COMPLETED)

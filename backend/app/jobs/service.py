@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from app.core.config import Settings
 from app.core.progress import StageName, StageStatus
 from app.core.secrets import resolve_provider_api_key
+from app.jobs.export_outputs import resolve_output_directory
 from app.jobs.names import sanitize_job_display_name
 from app.jobs.repository import JobRepository
 from app.jobs.runner import JobRunner
@@ -52,6 +53,11 @@ class JobService:
             raise ValueError(format_validation_error(exc)) from exc
         return sanitize_job_config(config)
 
+    def resolve_initial_filename(self, config: JobCreate, fallback: str) -> str:
+        if config.job_name.strip():
+            return sanitize_job_display_name(config.job_name)
+        return fallback
+
     async def create_video_job(
         self,
         *,
@@ -66,7 +72,10 @@ class JobService:
         if config.track_mux_settings.enabled and audio_file is None:
             raise ValueError("audio file is required when track mux is enabled")
 
-        job = self.repo.create_job(filename=file.filename or "input.mp4", config=config)
+        job = self.repo.create_job(
+            filename=self.resolve_initial_filename(config, file.filename or "input.mp4"),
+            config=config,
+        )
         job_dir = self.data_dir / "jobs" / str(job.id)
         job_dir.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +113,8 @@ class JobService:
         if not (url.startswith("http://") or url.startswith("https://")):
             raise ValueError("URL must start with http:// or https://")
 
-        filename = url if len(url) <= 120 else f"{url[:117]}..."
+        default_filename = url if len(url) <= 120 else f"{url[:117]}..."
+        filename = self.resolve_initial_filename(config, default_filename)
         job = self.repo.create_job(filename=filename, config=config)
         job_dir = self.data_dir / "jobs" / str(job.id)
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -126,7 +136,10 @@ class JobService:
     ) -> JobSummary:
         config = self.parse_config(config_json)
         validate_upload_extension(file.filename, ALLOWED_SRT_EXTENSIONS, "SRT file")
-        job = self.repo.create_job(filename=file.filename or "source.srt", config=config)
+        job = self.repo.create_job(
+            filename=self.resolve_initial_filename(config, file.filename or "source.srt"),
+            config=config,
+        )
         job_dir = self.data_dir / "jobs" / str(job.id)
         job_dir.mkdir(parents=True, exist_ok=True)
         (job_dir / "source.srt").write_bytes(
@@ -204,12 +217,23 @@ class JobService:
             raise KeyError(output_key)
 
         job_dir = (self.data_dir / "jobs" / str(job_id)).resolve()
+        output_dir = resolve_output_directory(job.config, job_dir).resolve()
         target = Path(path_str).resolve()
-        if target != job_dir and job_dir not in target.parents:
-            raise ValueError("Output path is outside the job directory")
+        inside_job_dir = target == job_dir or job_dir in target.parents
+        inside_output_dir = target == output_dir or output_dir in target.parents
+        if not inside_job_dir and not inside_output_dir:
+            raise ValueError("Output path is outside the job directories")
         if not target.is_file():
             raise FileNotFoundError(path_str)
         return target
+
+    def resolve_open_folder(self, job_id: UUID) -> Path:
+        job = self.repo.get_job(job_id)
+        job_dir = (self.data_dir / "jobs" / str(job_id)).resolve()
+        output_dir = resolve_output_directory(job.config, job_dir).resolve()
+        if output_dir.exists() and output_dir.is_dir():
+            return output_dir
+        return job_dir
 
     def rename_job(self, job_id: UUID, filename: str) -> JobSummary:
         display_name = sanitize_job_display_name(filename)

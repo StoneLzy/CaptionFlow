@@ -90,6 +90,11 @@ export function JobHistory({ jobs, selectedJobId, onSelectJob, t, loading, loadE
               <span>{t.jobStatusLabels[job.status]}</span>
               {jobPercent(job) != null ? <span>{jobPercent(job)}%</span> : null}
             </span>
+            {isExpanded && job.output_directory ? (
+              <span className="job-row-path" title={job.output_directory}>
+                {t.outputDirectoryLabel}: {job.output_directory}
+              </span>
+            ) : null}
             {jobPercent(job) != null ? (
               <span className="mini-progress" aria-hidden="true">
                 <span style={{ width: `${jobPercent(job)}%` }} />

@@ -25,6 +25,7 @@ export interface JobSummary {
   status: JobStatus;
   created_at: string;
   updated_at: string;
+  output_directory: string;
   progress: StageProgress[];
   error_summary?: string | null;
   outputs: Record<string, string>;

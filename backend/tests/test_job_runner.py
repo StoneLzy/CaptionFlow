@@ -8,7 +8,7 @@ from app.asr.output import write_transcription_outputs
 from app.asr.schemas import TranscriptionResult, TranscriptionSegment
 from app.jobs.repository import JobRepository
 from app.jobs.runner import JobRunner
-from app.jobs.schemas import JobCreate, JobStatus, TrackMuxSettings, TranscribeAudioSource
+from app.jobs.schemas import JobCreate, JobStatus, MediaSource, TrackMuxSettings, TranscribeAudioSource, YtdlpSettings
 from app.core.config import Settings
 
 
@@ -157,6 +157,90 @@ async def test_runner_transcription_only_skips_translation(
     assert not (job_dir / "transcript.txt").exists()
     assert not (job_dir / "transcript.md").exists()
     assert not (job_dir / "transcript.json").exists()
+
+
+@pytest.mark.asyncio
+async def test_runner_exports_final_outputs_to_custom_directory(
+    tmp_path: Path, settings: Settings, monkeypatch
+) -> None:
+    repo = JobRepository(tmp_path / "app.db")
+    export_dir = tmp_path / "chosen-output"
+    job = repo.create_job(
+        filename="video.mp4",
+        config=JobCreate(enable_translation=False, output_directory=str(export_dir)),
+    )
+    job_dir = tmp_path / "jobs" / str(job.id)
+    job_dir.mkdir(parents=True)
+    (job_dir / "input.mp4").write_text("video", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "app.jobs.runner.extract_audio_wav",
+        lambda input_path, output_path: output_path,
+    )
+    monkeypatch.setattr("app.jobs.runner.build_transcriber", lambda config: FakeTranscriber())
+
+    runner = JobRunner(
+        repo=repo,
+        data_dir=tmp_path,
+        settings=settings,
+        provider=FakeProvider(),
+    )
+    await runner.run_transcription_job(job.id)
+
+    updated = repo.get_job(job.id)
+    exported = export_dir / "transcript.srt"
+    assert exported.exists()
+    assert (job_dir / "transcript.srt").exists()
+    assert updated.outputs["transcript_srt"] == str(exported)
+    assert updated.output_directory == str(export_dir)
+
+
+@pytest.mark.asyncio
+async def test_runner_retry_reuses_existing_ytdlp_download(
+    tmp_path: Path, settings: Settings, monkeypatch
+) -> None:
+    repo = JobRepository(tmp_path / "app.db")
+    job = repo.create_job(
+        filename="https://example.com/watch?v=abc",
+        config=JobCreate(
+            media_source=MediaSource.YTDLP,
+            enable_translation=False,
+            ytdlp_settings=YtdlpSettings(url="https://example.com/watch?v=abc"),
+        ),
+    )
+    job_dir = tmp_path / "jobs" / str(job.id)
+    job_dir.mkdir(parents=True)
+    (job_dir / "source.url").write_text("https://example.com/watch?v=abc", encoding="utf-8")
+    (job_dir / "input.mp4").write_bytes(b"downloaded")
+
+    def fail_download(*args, **kwargs):
+        raise AssertionError("download should not run when input.mp4 already exists")
+
+    def fake_transcribe(self, job_id, media_path=None):
+        srt_path = tmp_path / "jobs" / str(job_id) / "transcript.srt"
+        srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nHello\n", encoding="utf-8")
+        return srt_path
+
+    monkeypatch.setattr("app.jobs.runner.download_media", fail_download)
+    monkeypatch.setattr(
+        "app.jobs.runner.probe_stream_types",
+        lambda path: {"video", "audio"},
+    )
+    monkeypatch.setattr(JobRunner, "transcribe_video", fake_transcribe)
+
+    runner = JobRunner(
+        repo=repo,
+        data_dir=tmp_path,
+        settings=settings,
+        provider=FakeProvider(),
+    )
+    await runner.run_transcription_job(job.id)
+
+    updated = repo.get_job(job.id)
+    progress = {stage.name: stage for stage in updated.progress}
+    assert progress["download"].status == "completed"
+    assert progress["download"].detail == "Using existing downloaded media"
+    assert updated.outputs["input_mp4"] == str(job_dir / "input.mp4")
 
 
 @pytest.mark.asyncio

@@ -34,15 +34,17 @@ class JobRepository:
         self.session_factory = make_session_factory(sqlite_path)
 
     def _to_summary(self, record: JobRecord) -> JobSummary:
+        config = JobCreate(**record.config)
         return JobSummary(
             id=UUID(record.id),
             filename=record.filename,
             status=JobStatus(record.status),
             created_at=record.created_at,
             updated_at=record.updated_at,
+            output_directory=config.output_directory,
             progress=[StageProgress(**stage) for stage in normalize_progress(record.progress)],
             error_summary=record.error_summary,
-            outputs=record.outputs,
+            outputs=record.outputs or {},
         )
 
     def _to_detail(self, record: JobRecord) -> JobDetail:

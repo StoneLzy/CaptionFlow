@@ -74,6 +74,8 @@ class TrackMuxSettings(BaseModel):
 
 
 class JobCreate(BaseModel):
+    job_name: str = ""
+    output_directory: str = ""
     media_source: MediaSource = MediaSource.UPLOAD
     ytdlp_settings: YtdlpSettings = Field(default_factory=YtdlpSettings)
     track_mux_settings: TrackMuxSettings = Field(default_factory=TrackMuxSettings)
@@ -94,6 +96,7 @@ class JobSummary(BaseModel):
     status: JobStatus
     created_at: datetime
     updated_at: datetime
+    output_directory: str = ""
     progress: list[StageProgress]
     error_summary: str | None = None
     outputs: dict[str, str] = Field(default_factory=dict)

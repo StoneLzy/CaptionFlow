@@ -1,5 +1,6 @@
 export interface WorkbenchDefaults {
   inputMode: "upload" | "url";
+  outputDirectory: string;
   sourceLanguage: string;
   targetLanguage: string;
   outputSrt: boolean;

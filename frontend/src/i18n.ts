@@ -52,6 +52,14 @@ export interface Translations {
   noJobs: string;
   newJob: string;
   newJobHint: string;
+  jobNameLabel: string;
+  jobNamePlaceholder: string;
+  jobNameHint: string;
+  outputDirectoryLabel: string;
+  outputDirectoryPlaceholder: string;
+  outputDirectoryHint: string;
+  chooseOutputDirectory: string;
+  clearOutputDirectory: string;
   fileLabel: string;
   fileHint: string;
   sourceLanguage: string;
@@ -228,6 +236,14 @@ export const t: Record<UiLanguage, Translations> = {
     noJobs: "暂无任务。",
     newJob: "新建任务",
     newJobHint: "视频或 SRT，一页完成配置。",
+    jobNameLabel: "任务名称",
+    jobNamePlaceholder: "可选，不填则自动命名",
+    jobNameHint: "用于历史记录显示；不填时使用文件名、URL 或下载标题。",
+    outputDirectoryLabel: "输出目录",
+    outputDirectoryPlaceholder: "可选，不填则保存到默认 Job 目录",
+    outputDirectoryHint: "最终字幕/TXT/MD/JSON 会复制到这里，中间文件仍保存在应用数据目录。",
+    chooseOutputDirectory: "选择",
+    clearOutputDirectory: "清空",
     fileLabel: "视频或 SRT 文件",
     fileHint: "选择视频进行转写，或选择 SRT 直接合并/翻译。",
     sourceLanguage: "源语言",
@@ -448,6 +464,14 @@ export const t: Record<UiLanguage, Translations> = {
     noJobs: "No jobs yet.",
     newJob: "New job",
     newJobHint: "Configure video or SRT jobs in one place.",
+    jobNameLabel: "Job name",
+    jobNamePlaceholder: "Optional; auto-named if empty",
+    jobNameHint: "Used in job history. Empty uses the file name, URL, or download title.",
+    outputDirectoryLabel: "Output directory",
+    outputDirectoryPlaceholder: "Optional; defaults to the job folder",
+    outputDirectoryHint: "Final SRT/TXT/MD/JSON files are copied here; intermediate files stay in app data.",
+    chooseOutputDirectory: "Choose",
+    clearOutputDirectory: "Clear",
     fileLabel: "Video or SRT file",
     fileHint: "Choose a video for transcription, or an SRT for merge/translation.",
     sourceLanguage: "Source language",

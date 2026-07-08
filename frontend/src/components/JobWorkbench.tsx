@@ -20,6 +20,7 @@ import {
 import { loadWorkbenchDefaults, saveWorkbenchDefaults } from "../formDefaults";
 import type { Translations } from "../i18n";
 import type { JobSummary } from "../types";
+import { selectDirectory } from "../utils/selectDirectory";
 
 interface Props {
   onJobStarted: (job: JobSummary) => void;
@@ -27,6 +28,8 @@ interface Props {
 }
 
 interface JobConfig {
+  job_name: string;
+  output_directory: string;
   source_language: string;
   target_language: string;
   output_formats: string[];
@@ -176,6 +179,8 @@ function OutputChip({
 export function JobWorkbench({ onJobStarted, t }: Props) {
   const storedDefaults = loadWorkbenchDefaults();
   const [inputMode, setInputMode] = useState<"upload" | "url">(storedDefaults.inputMode ?? "upload");
+  const [jobName, setJobName] = useState("");
+  const [outputDirectory, setOutputDirectory] = useState(storedDefaults.outputDirectory ?? "");
   const [videoUrl, setVideoUrl] = useState("");
   const [ytdlpPreset, setYtdlpPreset] = useState(storedDefaults.ytdlpPreset ?? "best");
   const [ytdlpCustomFormat, setYtdlpCustomFormat] = useState("");
@@ -280,6 +285,8 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
     ].filter((format): format is string => format !== null);
 
     const config: JobConfig = {
+      job_name: jobName.trim(),
+      output_directory: outputDirectory.trim(),
       source_language: sourceLanguage,
       target_language: targetLanguage,
       output_formats: outputFormats.length > 0 ? outputFormats : ["srt"],
@@ -349,6 +356,7 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
       onJobStarted(started);
       saveWorkbenchDefaults({
         inputMode,
+        outputDirectory,
         sourceLanguage,
         targetLanguage,
         outputSrt,
@@ -421,6 +429,51 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
               }}
             />
           </div>
+          <label className="flow-select-field">
+            <span>{t.jobNameLabel}</span>
+            <input
+              aria-label={t.jobNameLabel}
+              type="text"
+              value={jobName}
+              placeholder={t.jobNamePlaceholder}
+              onChange={(event) => setJobName(event.target.value)}
+            />
+            <p className="field-hint">{t.jobNameHint}</p>
+          </label>
+          <label className="flow-select-field">
+            <span>{t.outputDirectoryLabel}</span>
+            <div className="path-picker-row">
+              <input
+                aria-label={t.outputDirectoryLabel}
+                type="text"
+                value={outputDirectory}
+                placeholder={t.outputDirectoryPlaceholder}
+                onChange={(event) => setOutputDirectory(event.target.value)}
+              />
+              <button
+                type="button"
+                className="secondary-button compact"
+                onClick={async () => {
+                  const selected = await selectDirectory(outputDirectory);
+                  if (selected) {
+                    setOutputDirectory(selected);
+                  }
+                }}
+              >
+                {t.chooseOutputDirectory}
+              </button>
+              {outputDirectory ? (
+                <button
+                  type="button"
+                  className="ghost-button compact"
+                  onClick={() => setOutputDirectory("")}
+                >
+                  {t.clearOutputDirectory}
+                </button>
+              ) : null}
+            </div>
+            <p className="field-hint">{t.outputDirectoryHint}</p>
+          </label>
           {inputMode === "upload" ? (
             <>
               <label className="file-drop">

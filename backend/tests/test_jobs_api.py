@@ -37,6 +37,21 @@ def test_create_video_job_copies_input(client, monkeypatch, tmp_path) -> None:
     assert upload["percent"] == 100
 
 
+def test_create_video_job_uses_custom_job_name(client, monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TM_SQLITE_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setenv("TM_DATA_DIR", str(tmp_path))
+
+    response = client.post(
+        "/api/jobs/video",
+        data={"config_json": '{"job_name": "My Custom Job"}'},
+        files={"file": ("sample.mp4", b"video", "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "My Custom Job"
+    assert response.json()["output_directory"] == ""
+
+
 def test_create_srt_job_copies_source_srt(client, monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("TM_SQLITE_PATH", str(tmp_path / "app.db"))
     monkeypatch.setenv("TM_DATA_DIR", str(tmp_path))
@@ -130,6 +145,28 @@ def test_open_job_folder_opens_job_directory(client, monkeypatch, tmp_path) -> N
     assert response.status_code == 200
     assert response.json() == {"opened": True}
     assert opened == [str(tmp_path / "jobs" / created["id"])]
+
+
+def test_open_job_folder_prefers_custom_output_directory(client, monkeypatch, tmp_path) -> None:
+    monkeypatch.setenv("TM_SQLITE_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setenv("TM_DATA_DIR", str(tmp_path))
+    opened: list[str] = []
+    output_dir = tmp_path / "exports"
+    output_dir.mkdir()
+
+    monkeypatch.setattr("app.api.jobs.open_folder", lambda path: opened.append(str(path)))
+
+    created = client.post(
+        "/api/jobs/video",
+        data={"config_json": f'{{"output_directory": "{output_dir}"}}'},
+        files={"file": ("sample.mp4", b"video", "video/mp4")},
+    ).json()
+
+    response = client.post(f"/api/jobs/{created['id']}/open-folder")
+
+    assert response.status_code == 200
+    assert response.json() == {"opened": True}
+    assert opened == [str(output_dir)]
 
 
 def test_open_job_folder_returns_404_for_missing_job(client, monkeypatch, tmp_path) -> None:

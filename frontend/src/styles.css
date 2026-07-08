@@ -156,13 +156,20 @@ input {
   gap: 12px;
 }
 
-.about-dialog-links a {
+.about-dialog-links a,
+.about-dialog-link {
+  border: 0;
+  background: none;
+  padding: 0;
   color: #1f6f8b;
+  cursor: pointer;
+  font: inherit;
   font-weight: 700;
   text-decoration: none;
 }
 
-.about-dialog-links a:hover {
+.about-dialog-links a:hover,
+.about-dialog-link:hover {
   text-decoration: underline;
 }
 
@@ -523,6 +530,15 @@ input {
   font-size: 0.82rem;
 }
 
+.job-row-path {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #607086;
+  font-size: 0.78rem;
+  text-align: left;
+}
+
 .mini-progress,
 .stage-progress {
   display: block;
@@ -679,6 +695,28 @@ input {
   background: #f4fbfd;
 }
 
+.ghost-button {
+  justify-self: start;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 8px 11px;
+  background: transparent;
+  color: #607086;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.ghost-button:hover {
+  background: #f3f6f9;
+  color: #172033;
+}
+
+.secondary-button.compact,
+.ghost-button.compact {
+  padding: 8px 10px;
+  white-space: nowrap;
+}
+
 label {
   display: grid;
   gap: 6px;
@@ -793,6 +831,13 @@ textarea {
 
 .flow-select-field select {
   min-height: 38px;
+}
+
+.path-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 7px;
+  min-width: 0;
 }
 
 .text-grid,
@@ -1209,6 +1254,10 @@ fieldset label input[type="checkbox"] {
   .history,
   .progress-panel {
     position: static;
+  }
+
+  .path-picker-row {
+    grid-template-columns: 1fr;
   }
 }
 

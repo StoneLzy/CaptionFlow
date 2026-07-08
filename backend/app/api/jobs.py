@@ -106,10 +106,7 @@ async def run_job(job_id: UUID, background_tasks: BackgroundTasks) -> JobSummary
     job = _job_or_404(job_id)
     if job.status == JobStatus.RUNNING:
         raise HTTPException(status_code=409, detail="Job is already running")
-    if job.status in (JobStatus.FAILED, JobStatus.COMPLETED, JobStatus.CANCELLED):
-        queued_job = repo.reset_job_for_run(job_id)
-    else:
-        queued_job = repo.update_status(job_id, JobStatus.RUNNING)
+    queued_job = repo.update_status(job_id, JobStatus.RUNNING)
     background_tasks.add_task(execute_job, job_id)
     return queued_job
 
@@ -171,10 +168,9 @@ def read_job_log(job_id: UUID, log_name: str) -> PlainTextResponse:
 
 @router.post("/{job_id}/open-folder")
 def open_job_folder(job_id: UUID) -> dict[str, bool]:
-    settings = get_settings()
     _job_or_404(job_id)
 
-    job_dir = settings.data_dir / "jobs" / str(job_id)
+    job_dir = get_service().resolve_open_folder(job_id)
     if not job_dir.exists() or not job_dir.is_dir():
         raise HTTPException(status_code=404, detail="Job folder not found")
 

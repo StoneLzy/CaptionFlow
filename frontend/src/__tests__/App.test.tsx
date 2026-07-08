@@ -60,6 +60,7 @@ function jobPayload(status: JobSummary["status"]): JobSummary {
     status,
     created_at: "2026-05-30T00:00:00Z",
     updated_at: "2026-05-30T00:00:01Z",
+    output_directory: "",
     progress: [
       { name: "upload", status: "completed", detail: "", percent: 100 },
       {

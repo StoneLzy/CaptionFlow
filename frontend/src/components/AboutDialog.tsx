@@ -1,10 +1,11 @@
 import { useEffect, useRef } from "react";
 
 import type { Translations } from "../i18n";
+import { openExternalUrl } from "../utils/openExternalUrl";
 
 const REPO_URL = "https://github.com/StoneLzy/CaptionFlow";
-const README_URL = `${REPO_URL}/blob/master/README.md`;
-const MATURITY_URL = `${REPO_URL}/blob/master/docs/maturity-audit.md`;
+const README_URL = `${REPO_URL}/blob/main/README.md`;
+const MATURITY_URL = `${REPO_URL}/blob/main/docs/maturity-audit.md`;
 
 interface Props {
   open: boolean;
@@ -54,15 +55,19 @@ export function AboutDialog({ open, onClose, t }: Props) {
         </ul>
         <p className="about-dialog-note">{t.aboutLocalOnly}</p>
         <div className="about-dialog-links">
-          <a href={REPO_URL} target="_blank" rel="noreferrer">
+          <button type="button" className="about-dialog-link" onClick={() => void openExternalUrl(REPO_URL)}>
             {t.aboutGithub}
-          </a>
-          <a href={README_URL} target="_blank" rel="noreferrer">
+          </button>
+          <button type="button" className="about-dialog-link" onClick={() => void openExternalUrl(README_URL)}>
             {t.aboutReadme}
-          </a>
-          <a href={MATURITY_URL} target="_blank" rel="noreferrer">
+          </button>
+          <button
+            type="button"
+            className="about-dialog-link"
+            onClick={() => void openExternalUrl(MATURITY_URL)}
+          >
             {t.aboutMaturityDoc}
-          </a>
+          </button>
         </div>
         <p className="about-dialog-version">{t.aboutVersion}</p>
       </div>
