@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default permissions for the main CaptionFlow window.",
   "windows": ["main"],
-  "permissions": ["opener:default"]
+  "permissions": ["dialog:default", "opener:default"]
 }

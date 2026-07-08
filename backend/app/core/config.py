@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     translation_batch_size: int = 40
     translation_context_segments: int = 2
 
+    ffmpeg_executable: str = "ffmpeg"
+    ffprobe_executable: str = "ffprobe"
     ytdlp_executable: str = "yt-dlp"
     ytdlp_cookies_file: str = ""
 

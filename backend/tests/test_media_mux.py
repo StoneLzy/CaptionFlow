@@ -38,7 +38,7 @@ def test_mux_video_audio_stream_copy(monkeypatch, tmp_path: Path) -> None:
         return set()
 
     monkeypatch.setattr("app.media.mux.probe_stream_types", fake_probe)
-    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: None)
+    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: "ffmpeg")
 
     captured: dict[str, object] = {}
 
@@ -81,7 +81,7 @@ def test_mux_video_audio_stream_copy_shortest(monkeypatch, tmp_path: Path) -> No
         "app.media.mux.probe_stream_types",
         lambda path: {"video"} if "video" in path.name else {"audio"},
     )
-    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: None)
+    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: "ffmpeg")
 
     captured: dict[str, object] = {}
 
@@ -104,7 +104,7 @@ def test_mux_video_audio_stream_copy_requires_video_stream(monkeypatch, tmp_path
     audio_path.write_bytes(b"audio")
 
     monkeypatch.setattr("app.media.mux.probe_stream_types", lambda path: {"audio"})
-    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: None)
+    monkeypatch.setattr("app.media.mux.ensure_ffmpeg_available", lambda: "ffmpeg")
 
     with pytest.raises(RuntimeError, match="no video stream"):
         mux_video_audio_stream_copy(video_path, audio_path, tmp_path / "muxed.mp4")

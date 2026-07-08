@@ -10,7 +10,7 @@ from app.asr.schemas import (
     WordTimestamp,
 )
 from app.core.constants import SourceLanguage
-from app.whisper.audio import ensure_ffmpeg_available
+from app.media.binaries import ensure_ffmpeg_available
 
 
 class FasterWhisperTranscriber:

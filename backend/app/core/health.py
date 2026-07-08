@@ -1,19 +1,13 @@
-import shutil
 import subprocess
 from pathlib import Path
 
 from app.asr.schemas import AsrBackend
+from app.media.binaries import command_available
 from app.asr.whisperkit_runtime import (
     resolve_whisperkit_executable,
     resolve_whisperkit_model_path,
 )
 from app.core.config import Settings
-
-
-def _command_available(executable: str) -> bool:
-    if Path(executable).is_file():
-        return True
-    return shutil.which(executable) is not None
 
 
 def probe_asr_backend(settings: Settings) -> dict[str, bool | str]:
@@ -53,9 +47,9 @@ def probe_asr_backend(settings: Settings) -> dict[str, bool | str]:
 
 
 def probe_dependencies(settings: Settings) -> dict[str, object]:
-    ffmpeg_ok = _command_available("ffmpeg")
-    ffprobe_ok = _command_available("ffprobe")
-    ytdlp_ok = _command_available(settings.ytdlp_executable)
+    ffmpeg_ok = command_available(settings.ffmpeg_executable)
+    ffprobe_ok = command_available(settings.ffprobe_executable)
+    ytdlp_ok = command_available(settings.ytdlp_executable)
     asr = probe_asr_backend(settings)
     provider_ready = bool(settings.provider_base_url and settings.provider_model)
     checks = {

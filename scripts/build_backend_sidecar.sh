@@ -2,9 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TARGET_TRIPLE="$("${HOME}/.cargo/bin/rustc" --print host-tuple 2>/dev/null || rustc --print host-tuple)"
-OUTPUT_DIR="${ROOT}/src-tauri/binaries"
-OUTPUT_NAME="captionflow-backend-${TARGET_TRIPLE}"
+OUTPUT_DIR="${ROOT}/runtime/backend"
+OUTPUT_NAME="captionflow-backend"
 
 choose_python() {
   if command -v conda >/dev/null 2>&1; then
@@ -20,12 +19,12 @@ choose_python() {
   echo "${PYTHON:-python}"
 }
 
-PYTHON_COMMAND="$(choose_python)"
 mkdir -p "${OUTPUT_DIR}"
+PYTHON_COMMAND="$(choose_python)"
 
 if ! ${PYTHON_COMMAND} -c "import PyInstaller" >/dev/null 2>&1; then
   cat >&2 <<EOF
-PyInstaller is required to build the backend sidecar.
+PyInstaller is required to build the backend runtime.
 
 Install project dev dependencies first:
   python -m pip install -e ".[dev]"
@@ -37,11 +36,11 @@ EOF
 fi
 
 cd "${ROOT}"
-rm -rf build/captionflow-backend dist/captionflow-backend
+rm -rf build/captionflow-backend dist/captionflow-backend "${OUTPUT_DIR}/${OUTPUT_NAME}"
 PYTHONPATH=backend ${PYTHON_COMMAND} -m PyInstaller \
   --clean \
   --noconfirm \
-  --onefile \
+  --onedir \
   --name captionflow-backend \
   --distpath dist \
   --workpath build \
@@ -65,6 +64,6 @@ PYTHONPATH=backend ${PYTHON_COMMAND} -m PyInstaller \
   --exclude-module torch \
   backend/app/sidecar.py
 
-cp "dist/captionflow-backend" "${OUTPUT_DIR}/${OUTPUT_NAME}"
-chmod +x "${OUTPUT_DIR}/${OUTPUT_NAME}"
-echo "Built backend sidecar: ${OUTPUT_DIR}/${OUTPUT_NAME}"
+ditto "dist/captionflow-backend" "${OUTPUT_DIR}/${OUTPUT_NAME}"
+chmod +x "${OUTPUT_DIR}/${OUTPUT_NAME}/captionflow-backend"
+echo "Built backend runtime: ${OUTPUT_DIR}/${OUTPUT_NAME}/captionflow-backend"

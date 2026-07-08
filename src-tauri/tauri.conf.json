@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.stonelzy.captionflow",
   "build": {
-    "beforeDevCommand": "npm run sidecar:build && cd frontend && npm run dev",
+    "beforeDevCommand": "./scripts/setup_media_tools.sh --ensure && npm run sidecar:build && cd frontend && npm run dev",
     "devUrl": "http://127.0.0.1:5173",
-    "beforeBuildCommand": "npm run sidecar:build && cd frontend && npm run build",
+    "beforeBuildCommand": "./scripts/setup_media_tools.sh --ensure && npm run sidecar:build && cd frontend && npm run build",
     "frontendDist": "../frontend/dist"
   },
   "app": {
@@ -34,9 +34,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "externalBin": ["binaries/captionflow-backend"],
     "resources": {
-      "../runtime/whisperkit/": "runtime/whisperkit/"
+      "../runtime/backend/": "runtime/backend/",
+      "../runtime/whisperkit/": "runtime/whisperkit/",
+      "../runtime/media/bin/": "runtime/media/bin/",
+      "../runtime/media/lib/": "runtime/media/lib/"
     },
     "category": "public.app-category.video",
     "shortDescription": "Local video transcription and subtitle translation.",

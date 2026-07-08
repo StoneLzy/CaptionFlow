@@ -1,6 +1,12 @@
-import shutil
 import subprocess
 from pathlib import Path
+
+from app.media.binaries import (
+    ensure_ffmpeg_available,
+    ensure_ffprobe_available,
+    resolve_ffmpeg_executable,
+    resolve_ffprobe_executable,
+)
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 
@@ -9,19 +15,13 @@ def is_audio_file(path: Path) -> bool:
     return path.suffix.lower() in AUDIO_EXTENSIONS
 
 
-def ensure_ffmpeg_available() -> None:
-    if shutil.which("ffmpeg") is None:
-        raise RuntimeError(
-            "ffmpeg is not installed or not on PATH. Install ffmpeg before transcribing audio."
-        )
-
-
 def probe_stream_types(input_path: Path) -> set[str]:
-    if shutil.which("ffprobe") is None:
+    ffprobe = ensure_ffprobe_available()
+    if not ffprobe:
         return set()
     result = subprocess.run(
         [
-            "ffprobe",
+            ffprobe,
             "-v",
             "error",
             "-show_entries",
@@ -40,11 +40,12 @@ def probe_stream_types(input_path: Path) -> set[str]:
 
 
 def probe_media_duration_seconds(input_path: Path) -> float | None:
-    if shutil.which("ffprobe") is None:
+    ffprobe = ensure_ffprobe_available()
+    if not ffprobe:
         return None
     result = subprocess.run(
         [
-            "ffprobe",
+            ffprobe,
             "-v",
             "error",
             "-show_entries",
@@ -67,10 +68,10 @@ def probe_media_duration_seconds(input_path: Path) -> float | None:
 
 
 def extract_audio_wav(input_path: Path, output_path: Path) -> Path:
-    ensure_ffmpeg_available()
+    ffmpeg = ensure_ffmpeg_available()
     result = subprocess.run(
         [
-            "ffmpeg",
+            ffmpeg,
             "-y",
             "-i",
             str(input_path),
@@ -91,3 +92,16 @@ def extract_audio_wav(input_path: Path, output_path: Path) -> Path:
         details = (result.stderr or result.stdout or "ffmpeg failed to extract audio").strip()
         raise RuntimeError(f"audio extraction failed: {details}")
     return output_path
+
+
+__all__ = [
+    "AUDIO_EXTENSIONS",
+    "ensure_ffmpeg_available",
+    "ensure_ffprobe_available",
+    "extract_audio_wav",
+    "is_audio_file",
+    "probe_media_duration_seconds",
+    "probe_stream_types",
+    "resolve_ffmpeg_executable",
+    "resolve_ffprobe_executable",
+]

@@ -2,7 +2,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from app.whisper.audio import ensure_ffmpeg_available, probe_stream_types
+from app.media.binaries import ensure_ffmpeg_available
+from app.whisper.audio import probe_stream_types
 
 
 def find_track_file(job_dir: Path, stem: str) -> Path | None:
@@ -19,14 +20,14 @@ def mux_video_audio_stream_copy(
     *,
     use_shortest: bool = False,
 ) -> Path:
-    ensure_ffmpeg_available()
+    ffmpeg = ensure_ffmpeg_available()
     if "video" not in probe_stream_types(video_path):
         raise RuntimeError(f"no video stream found in {video_path.name}")
     if "audio" not in probe_stream_types(audio_path):
         raise RuntimeError(f"no audio stream found in {audio_path.name}")
 
     command = [
-        "ffmpeg",
+        ffmpeg,
         "-y",
         "-i",
         str(video_path),
