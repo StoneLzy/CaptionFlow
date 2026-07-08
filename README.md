@@ -504,4 +504,4 @@ python -m pytest
 
 ## License
 
-仓库尚未包含 LICENSE 文件。使用前请自行确认授权范围；如需开源发布，建议补充许可证声明。
+MIT — see [LICENSE](LICENSE).
