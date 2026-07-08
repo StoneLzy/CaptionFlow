@@ -1,5 +1,7 @@
 # CaptionFlow
 
+**English** — CaptionFlow is a local-first macOS app for video transcription and subtitle translation. Upload a video or SRT, fetch from a URL with yt-dlp, transcribe with WhisperKit, optionally merge subtitles and translate through OpenAI-compatible APIs. Jobs and outputs stay on your Mac.
+
 本地优先的视频转写与字幕翻译工作台。React/Vite 前端 + FastAPI 后端，macOS 初版以 **Tauri v2 桌面 App** 交付，默认 ASR 为 **WhisperKit**（Apple Silicon / CoreML）。
 
 > **安全说明**：本项目设计为**本机单人使用**。默认 API 无认证、无限流，请勿将服务暴露到公网或不可信局域网。Provider API Key 可通过应用设置保存到 macOS Keychain，也可使用 `.env`；不会写入任务数据库或 `settings.json`。

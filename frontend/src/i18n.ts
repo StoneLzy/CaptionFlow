@@ -443,15 +443,15 @@ export const t: Record<UiLanguage, Translations> = {
     about: "About",
     aboutTitle: "CaptionFlow",
     aboutDescription:
-      "A local-first workbench for video transcription and subtitle translation. Jobs and outputs stay in the local application support directory.",
+      "A local-first macOS app for video transcription and subtitle translation. Everything runs on your Mac—jobs, files, and outputs stay in your local app data.",
     aboutFeatures: [
-      "Upload video or SRT, or fetch online video via yt-dlp",
-      "WhisperKit-first transcription for the initial macOS release",
-      "Optional subtitle merge and batched translation via OpenAI-compatible APIs",
-      "Job history, progress tracking, output downloads, and diagnostic logs",
+      "Upload video or SRT, or fetch from a URL with yt-dlp",
+      "Transcribe with WhisperKit on Apple Silicon",
+      "Merge subtitles and translate with OpenAI-compatible APIs",
+      "Track jobs, download outputs, and inspect logs",
     ],
     aboutLocalOnly:
-      "Built for single-user local use. Do not expose the service publicly; Provider API keys can be stored securely in macOS Keychain.",
+      "For personal, local use only. Do not expose the API to the internet. Provider API keys can be stored in macOS Keychain.",
     aboutGithub: "GitHub repository",
     aboutReadme: "README",
     aboutMaturityDoc: "Maturity audit",

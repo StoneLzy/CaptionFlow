@@ -41,8 +41,8 @@
       "../runtime/media/lib/": "runtime/media/lib/"
     },
     "category": "public.app-category.video",
-    "shortDescription": "Local video transcription and subtitle translation.",
-    "longDescription": "CaptionFlow is a local-first macOS workbench for video transcription, subtitle merging, and optional translation.",
+    "shortDescription": "Local-first macOS app for video transcription and subtitle translation.",
+    "longDescription": "CaptionFlow is a local-first macOS app for video transcription, subtitle merging, and optional translation. Upload files or fetch from URLs, transcribe with WhisperKit, and keep jobs and outputs on your Mac.",
     "macOS": {
       "signingIdentity": "-",
       "entitlements": "entitlements.plist"
