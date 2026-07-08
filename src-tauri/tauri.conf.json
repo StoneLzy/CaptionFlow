@@ -1,0 +1,49 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "CaptionFlow",
+  "version": "0.1.0",
+  "identifier": "com.stonelzy.captionflow",
+  "build": {
+    "beforeDevCommand": "npm run sidecar:build && cd frontend && npm run dev",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run sidecar:build && cd frontend && npm run build",
+    "frontendDist": "../frontend/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "CaptionFlow",
+        "width": 1280,
+        "height": 860,
+        "minWidth": 720,
+        "minHeight": 620,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/captionflow-backend"],
+    "resources": {
+      "../runtime/whisperkit/": "runtime/whisperkit/"
+    },
+    "category": "public.app-category.video",
+    "shortDescription": "Local video transcription and subtitle translation.",
+    "longDescription": "CaptionFlow is a local-first macOS workbench for video transcription, subtitle merging, and optional translation.",
+    "macOS": {
+      "signingIdentity": "-",
+      "entitlements": "entitlements.plist"
+    }
+  }
+}

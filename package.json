@@ -1,0 +1,16 @@
+{
+  "name": "captionflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "frontend:dev": "cd frontend && npm run dev",
+    "frontend:build": "cd frontend && npm run build",
+    "sidecar:build": "./scripts/build_backend_sidecar.sh",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build && ./scripts/fix_dmg_volume_icon.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4"
+  }
+}

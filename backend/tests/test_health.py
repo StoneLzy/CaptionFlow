@@ -1,0 +1,7 @@
+def test_health_returns_ok(client):
+    response = client.get("/api/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] in {"ok", "degraded"}
+    assert "checks" in payload
