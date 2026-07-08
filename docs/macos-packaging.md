@@ -7,9 +7,10 @@ This project is the macOS app packaging track copied from Translation Middleware
 - Tauri v2 owns the macOS window and app bundle.
 - React/Vite builds into `frontend/dist` and is loaded by Tauri.
 - The local WhisperKit runtime lives under `runtime/whisperkit/` during development.
-- The Python/FastAPI backend is packaged by PyInstaller as a Tauri sidecar.
-- Tauri starts the backend sidecar on a free `127.0.0.1` port and exposes that base URL to the frontend through the `backend_base_url` command.
+- The Python/FastAPI backend is packaged by PyInstaller in `--onedir` mode.
+- Tauri starts the bundled backend executable from `Contents/Resources/runtime/backend` on a free `127.0.0.1` port and exposes that base URL to the frontend through the `backend_base_url` command.
 - The WhisperKit runtime is bundled as a Tauri resource under `Contents/Resources/runtime/whisperkit`.
+- Bundled media tools live under `Contents/Resources/runtime/media/bin` with ffmpeg dylibs under `runtime/media/lib` on Apple Silicon.
 
 ## Local commands
 
@@ -17,6 +18,7 @@ This project is the macOS app packaging track copied from Translation Middleware
 npm install
 cd frontend && npm install
 cd ..
+./scripts/setup_media_tools.sh --ensure
 npm run tauri:build
 ```
 
@@ -38,24 +40,36 @@ The packaging copy intentionally keeps only the currently used WhisperKit chain:
 
 The old MLX, faster-whisper, whisper.cpp, and Swift build checkout assets are not required for the initial macOS app package. `runtime/` is ignored by Git because it contains large local binaries/models; the packaging flow should copy or install these resources explicitly.
 
-## Backend sidecar
+## Bundled media tools
 
-`npm run sidecar:build` builds `backend/app/sidecar.py` with PyInstaller and writes the Tauri sidecar binary to:
+`./scripts/setup_media_tools.sh --ensure` prepares:
+
+- `runtime/media/bin/ffmpeg`
+- `runtime/media/bin/ffprobe`
+- `runtime/media/bin/yt-dlp`
+
+On Apple Silicon, ffmpeg/ffprobe are copied from Homebrew together with their dylibs into `runtime/media/lib`, then patched to load via `@executable_path/../lib`. On Intel macOS, static ffmpeg/ffprobe builds are downloaded from evermeet.cx. yt-dlp is always fetched from the official macOS release binary.
+
+Tauri injects `TM_FFMPEG_EXECUTABLE`, `TM_FFPROBE_EXECUTABLE`, and `TM_YTDLP_EXECUTABLE` when starting the backend runtime.
+
+## Backend runtime
+
+`npm run sidecar:build` builds `backend/app/sidecar.py` with PyInstaller and writes the onedir runtime to:
 
 ```text
-src-tauri/binaries/captionflow-backend-aarch64-apple-darwin
+runtime/backend/captionflow-backend/captionflow-backend
 ```
 
-The sidecar binary is intentionally built without MLX/faster-whisper/torch/scipy modules. The ASR factory lazy-loads legacy ASR adapters so the packaged app only ships the WhisperKit path.
+The backend runtime is intentionally built without MLX/faster-whisper/torch/scipy modules. The ASR factory lazy-loads legacy ASR adapters so the packaged app only ships the WhisperKit path.
 
-The current PyInstaller mode is `--onefile`, so the first backend startup may take several seconds while Python runtime files are extracted. If startup latency becomes annoying, switch to an onedir sidecar/resource layout in a later slice.
+The current PyInstaller mode is `--onedir`, so Python runtime files are already expanded inside the app bundle. This avoids the `--onefile` startup extraction cost.
 
 ## App identity
 
 - Product name: `CaptionFlow`
 - Bundle identifier: `com.stonelzy.captionflow`
 - Local signing: ad-hoc signing identity `-`
-- Local entitlement: `com.apple.security.cs.disable-library-validation` for the PyInstaller backend sidecar.
+- Local entitlement: `com.apple.security.cs.disable-library-validation` for the PyInstaller backend runtime.
 - Default data directory: `~/Library/Application Support/CaptionFlow`
 - Default logs directory: `~/Library/Logs/CaptionFlow`
 
@@ -72,10 +86,9 @@ release/CaptionFlow.app
 release/CaptionFlow_0.1.0_aarch64.dmg
 ```
 
-`release/CaptionFlow.app` has been verified to start its backend sidecar and return `status: ok` from `/api/health`.
+`release/CaptionFlow.app` has been verified to start its backend runtime and return `status: ok` from `/api/health`.
 
 ## Next packaging slices
 
-1. Replace PyInstaller `--onefile` with an onedir sidecar if startup latency matters.
-2. Add first-run resource copy/install into `~/Library/Application Support/CaptionFlow/Models` if the model should not stay inside the app bundle.
-3. Add Apple Developer ID signing and notarization for distribution outside this machine.
+1. Add first-run resource copy/install into `~/Library/Application Support/CaptionFlow/Models` if the model should not stay inside the app bundle.
+2. Add Apple Developer ID signing and notarization for distribution outside this machine.
