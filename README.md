@@ -246,7 +246,7 @@ npm run tauri:build              # → release/CaptionFlow.app + .dmg
 
 ```text
 release/CaptionFlow.app
-release/CaptionFlow_0.1.0_aarch64.dmg
+release/CaptionFlow_0.1.1_aarch64.dmg
 ```
 
 后端运行时输出至 `runtime/backend/captionflow-backend/`，并以 PyInstaller `--onedir` 形式打进 App，避免 `--onefile` 每次启动前的解压等待。

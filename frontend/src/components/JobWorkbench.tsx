@@ -1,4 +1,22 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  AudioLines,
+  Captions,
+  ChevronDown,
+  FileVideo2,
+  FolderOpen,
+  HardDrive,
+  Languages as LanguagesIcon,
+  Link2,
+  MessageSquareText,
+  Play,
+  Settings2,
+  ShieldCheck,
+  SlidersHorizontal,
+  Sparkles,
+  UploadCloud,
+  Workflow,
+} from "lucide-react";
 
 import {
   createSrtJob,
@@ -23,6 +41,7 @@ import type { JobSummary } from "../types";
 import { selectDirectory } from "../utils/selectDirectory";
 
 interface Props {
+  onJobCreated: (job: JobSummary) => void;
   onJobStarted: (job: JobSummary) => void;
   t: Translations;
 }
@@ -131,6 +150,13 @@ function isSrtFile(file: File): boolean {
   return file.name.toLowerCase().endsWith(".srt");
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function SwitchControl({
   checked,
   label,
@@ -157,10 +183,14 @@ function SwitchControl({
 
 function OutputChip({
   checked,
+  disabled = false,
+  icon,
   label,
   onClick,
 }: {
   checked: boolean;
+  disabled?: boolean;
+  icon?: ReactNode;
   label: string;
   onClick: () => void;
 }) {
@@ -169,14 +199,16 @@ function OutputChip({
       className={`output-chip${checked ? " selected" : ""}`}
       type="button"
       aria-pressed={checked}
+      disabled={disabled}
       onClick={onClick}
     >
+      {icon}
       {label}
     </button>
   );
 }
 
-export function JobWorkbench({ onJobStarted, t }: Props) {
+export function JobWorkbench({ onJobCreated, onJobStarted, t }: Props) {
   const storedDefaults = loadWorkbenchDefaults();
   const [inputMode, setInputMode] = useState<"upload" | "url">(storedDefaults.inputMode ?? "upload");
   const [jobName, setJobName] = useState("");
@@ -220,6 +252,7 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
   const [settingsLoadError, setSettingsLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
 
   useEffect(() => {
     fetchSettings()
@@ -266,6 +299,10 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
       setError(t.ytdlpCustomFormat);
       return;
     }
+    if (![outputSrt, outputTxt, outputMd, outputJson].some(Boolean)) {
+      setError(t.outputFormatRequiredError);
+      return;
+    }
 
     const mergeSettings = resolveMergeSettings(mergeEnabled, {
       minDurationMs,
@@ -289,7 +326,7 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
       output_directory: outputDirectory.trim(),
       source_language: sourceLanguage,
       target_language: targetLanguage,
-      output_formats: outputFormats.length > 0 ? outputFormats : ["srt"],
+      output_formats: outputFormats,
       merge_settings: {
         enabled: mergeEnabled,
         min_duration_ms: mergeSettings.values.min_duration_ms,
@@ -351,7 +388,7 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
           : file && isSrtFile(file)
             ? await createSrtJob(formData)
             : await createVideoJob(formData);
-      onJobStarted(created);
+      onJobCreated(created);
       const started = await runJob(created.id);
       onJobStarted(started);
       saveWorkbenchDefaults({
@@ -386,9 +423,18 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
     }
   }
 
+  function handleSourceFile(nextFile: File | null) {
+    setAudioFile(null);
+    setTrackMuxEnabled(false);
+    setUseShortest(false);
+    setFile(nextFile);
+    setError(null);
+  }
+
   const isSrt = inputMode === "upload" && file ? isSrtFile(file) : false;
+  const selectedOutputCount = [outputSrt, outputTxt, outputMd, outputJson].filter(Boolean).length;
   const canSubmit =
-    inputMode === "url" ? videoUrl.trim().length > 0 : file !== null;
+    (inputMode === "url" ? videoUrl.trim().length > 0 : file !== null) && selectedOutputCount > 0;
   const backendText =
     asrBackend === "mlx_whisper"
       ? `MLX Whisper: ${mlxWhisperModel || t.defaultModel}`
@@ -402,137 +448,210 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
 
   return (
     <form className="workbench" onSubmit={handleSubmit}>
+      <header className="create-view-heading">
+        <p className="workspace-kicker">
+          <Sparkles size={14} aria-hidden="true" />
+          CAPTION STUDIO
+        </p>
+        <h2>{t.newJob}</h2>
+        <p>{t.newJobHint}</p>
+      </header>
+
       <section className="task-strip">
-        <div className="task-strip-copy">
-          <h2>{t.newJob}</h2>
-          <p>{t.newJobHint}</p>
-        </div>
-        <div className="task-strip-files">
-          <div className="chip-row">
-            <OutputChip
-              checked={inputMode === "upload"}
-              label={t.inputModeUpload}
-              onClick={() => {
-                setInputMode("upload");
-                setError(null);
-              }}
-            />
-            <OutputChip
-              checked={inputMode === "url"}
-              label={t.inputModeUrl}
-              onClick={() => {
-                setInputMode("url");
-                setFile(null);
-                setAudioFile(null);
-                setTrackMuxEnabled(false);
-                setError(null);
-              }}
-            />
+        <header className="task-card-heading">
+          <span className="section-icon source-icon"><FileVideo2 size={19} aria-hidden="true" /></span>
+          <div>
+            <p className="section-step">STEP 01</p>
+            <h3>{t.fileLabel}</h3>
           </div>
-          <label className="flow-select-field">
-            <span>{t.jobNameLabel}</span>
-            <input
-              aria-label={t.jobNameLabel}
-              type="text"
-              value={jobName}
-              placeholder={t.jobNamePlaceholder}
-              onChange={(event) => setJobName(event.target.value)}
-            />
-            <p className="field-hint">{t.jobNameHint}</p>
-          </label>
-          <label className="flow-select-field">
-            <span>{t.outputDirectoryLabel}</span>
-            <div className="path-picker-row">
-              <input
-                aria-label={t.outputDirectoryLabel}
-                type="text"
-                value={outputDirectory}
-                placeholder={t.outputDirectoryPlaceholder}
-                onChange={(event) => setOutputDirectory(event.target.value)}
-              />
-              <button
-                type="button"
-                className="secondary-button compact"
-                onClick={async () => {
-                  const selected = await selectDirectory(outputDirectory);
-                  if (selected) {
-                    setOutputDirectory(selected);
+        </header>
+
+        <div className="input-mode-tabs" aria-label="Input mode">
+          <OutputChip
+            checked={inputMode === "upload"}
+            icon={<UploadCloud size={16} aria-hidden="true" />}
+            label={t.inputModeUpload}
+            onClick={() => {
+              setInputMode("upload");
+              setError(null);
+            }}
+          />
+          <OutputChip
+            checked={inputMode === "url"}
+            icon={<Link2 size={16} aria-hidden="true" />}
+            label={t.inputModeUrl}
+            onClick={() => {
+              setInputMode("url");
+              setFile(null);
+              setAudioFile(null);
+              setTrackMuxEnabled(false);
+              setError(null);
+            }}
+          />
+        </div>
+
+        <div className="source-grid">
+          <div className="source-primary">
+            {inputMode === "upload" ? (
+              <label
+                className={`file-drop primary-drop${dragActive ? " drag-active" : ""}${file ? " has-file" : ""}`}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setDragActive(true);
+                }}
+                onDragLeave={(event) => {
+                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setDragActive(false);
                   }
                 }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setDragActive(false);
+                  handleSourceFile(event.dataTransfer.files?.[0] ?? null);
+                }}
               >
-                {t.chooseOutputDirectory}
-              </button>
-              {outputDirectory ? (
-                <button
-                  type="button"
-                  className="ghost-button compact"
-                  onClick={() => setOutputDirectory("")}
-                >
-                  {t.clearOutputDirectory}
-                </button>
-              ) : null}
-            </div>
-            <p className="field-hint">{t.outputDirectoryHint}</p>
-          </label>
-          {inputMode === "upload" ? (
-            <>
-              <label className="file-drop">
-                <span>{t.fileLabel}</span>
-                <strong>{file ? file.name : t.fileHint}</strong>
+                <span className="file-drop-icon" aria-hidden="true">
+                  {file ? <FileVideo2 size={28} /> : <UploadCloud size={29} />}
+                </span>
+                <span className="file-drop-copy">
+                  <strong>{file ? file.name : t.fileHint}</strong>
+                  <small>
+                    {file
+                      ? `${isSrtFile(file) ? "SRT" : "VIDEO"} · ${formatFileSize(file.size)}`
+                      : t.fileLabel}
+                  </small>
+                </span>
+                <span className="browse-pill">{t.inputModeUpload}</span>
                 <input
                   aria-label={t.fileLabel}
                   type="file"
                   accept="video/*,.srt"
+                  onChange={(event) => handleSourceFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+            ) : (
+              <label className="source-url-card">
+                <span className="file-drop-icon" aria-hidden="true"><Link2 size={25} /></span>
+                <span className="source-url-copy">
+                  <strong>{t.videoUrlLabel}</strong>
+                  <small>{t.videoUrlHint}</small>
+                </span>
+                <input
+                  aria-label={t.videoUrlLabel}
+                  type="url"
+                  value={videoUrl}
+                  placeholder={t.videoUrlPlaceholder}
+                  onChange={(event) => setVideoUrl(event.target.value)}
+                />
+              </label>
+            )}
+          </div>
+
+          <div className="source-fields">
+            <label>
+              <span className="field-label-with-icon">{t.jobNameLabel}</span>
+              <input
+                aria-label={t.jobNameLabel}
+                type="text"
+                value={jobName}
+                placeholder={t.jobNamePlaceholder}
+                onChange={(event) => setJobName(event.target.value)}
+              />
+              <p className="field-hint">{t.jobNameHint}</p>
+            </label>
+
+            <div className="field-group">
+              <label className="field-label-with-icon" htmlFor="job-output-directory">
+                <HardDrive size={14} aria-hidden="true" />{t.outputDirectoryLabel}
+              </label>
+              <div className="path-picker-row">
+                <input
+                  id="job-output-directory"
+                  aria-label={t.outputDirectoryLabel}
+                  type="text"
+                  value={outputDirectory}
+                  placeholder={t.outputDirectoryPlaceholder}
+                  onChange={(event) => setOutputDirectory(event.target.value)}
+                />
+                <button
+                  type="button"
+                  className="icon-button path-picker-button"
+                  aria-label={t.chooseOutputDirectory}
+                  title={t.chooseOutputDirectory}
+                  onClick={async () => {
+                    const selected = await selectDirectory(outputDirectory);
+                    if (selected) {
+                      setOutputDirectory(selected);
+                    }
+                  }}
+                >
+                  <FolderOpen size={16} aria-hidden="true" />
+                </button>
+                {outputDirectory ? (
+                  <button type="button" className="ghost-button compact" onClick={() => setOutputDirectory("")}>
+                    {t.clearOutputDirectory}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            {inputMode === "upload" && file && !isSrt ? (
+              <label className={`file-drop audio-drop${trackMuxEnabled ? " selected" : ""}`}>
+                <span className="file-drop-icon" aria-hidden="true"><AudioLines size={18} /></span>
+                <span className="file-drop-copy">
+                  <strong>{audioFile ? audioFile.name : t.audioFileLabel}</strong>
+                  <small>{audioFile ? formatFileSize(audioFile.size) : t.audioFileHint}</small>
+                </span>
+                <input
+                  aria-label={t.audioFileLabel}
+                  type="file"
+                  accept="audio/*,.m4a,.aac,.mp3,.wav,.flac"
                   onChange={(event) => {
-                    const nextFile = event.target.files?.[0] ?? null;
-                    setFile(nextFile);
-                    if (!nextFile || isSrtFile(nextFile)) {
-                      setTrackMuxEnabled(false);
-                      setAudioFile(null);
+                    const nextAudio = event.target.files?.[0] ?? null;
+                    setAudioFile(nextAudio);
+                    if (nextAudio) {
+                      setTrackMuxEnabled(true);
                     }
                   }}
                 />
               </label>
-              {file && !isSrt ? (
-                <label className={`file-drop${trackMuxEnabled ? "" : " optional"}`}>
-                  <span>{t.audioFileLabel}</span>
-                  <strong>{audioFile ? audioFile.name : t.audioFileHint}</strong>
-                  <input
-                    aria-label={t.audioFileLabel}
-                    type="file"
-                    accept="audio/*,.m4a,.aac,.mp3,.wav,.flac"
-                    onChange={(event) => {
-                      const nextAudio = event.target.files?.[0] ?? null;
-                      setAudioFile(nextAudio);
-                      if (nextAudio) {
-                        setTrackMuxEnabled(true);
-                      }
-                    }}
-                  />
+            ) : null}
+
+            {inputMode === "url" ? (
+              <div className="url-options-row">
+                <label>
+                  {t.ytdlpFormatPreset}
+                  <select aria-label={t.ytdlpFormatPreset} value={ytdlpPreset} onChange={(event) => setYtdlpPreset(event.target.value)}>
+                    <option value="best">{t.ytdlpFormatBest}</option>
+                    <option value="best_1080p">{t.ytdlpFormat1080}</option>
+                    <option value="best_720p">{t.ytdlpFormat720}</option>
+                    <option value="custom">{t.ytdlpFormatCustom}</option>
+                  </select>
                 </label>
-              ) : null}
-            </>
-          ) : (
-            <label className="flow-select-field">
-              <span>{t.videoUrlLabel}</span>
-              <input
-                aria-label={t.videoUrlLabel}
-                type="url"
-                value={videoUrl}
-                placeholder={t.videoUrlPlaceholder}
-                onChange={(event) => setVideoUrl(event.target.value)}
-              />
-              <p className="field-hint">{t.videoUrlHint}</p>
-            </label>
-          )}
+                {ytdlpPreset === "custom" ? (
+                  <label>
+                    {t.ytdlpCustomFormat}
+                    <input aria-label={t.ytdlpCustomFormat} type="text" value={ytdlpCustomFormat} placeholder={t.ytdlpCustomFormatPlaceholder} onChange={(event) => setYtdlpCustomFormat(event.target.value)} />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
         </div>
-        <button className="primary-button" type="submit" disabled={submitting || !canSubmit}>
-          {submitting ? t.starting : t.startJob}
-        </button>
       </section>
 
-      <section className="config-section">
-        <div className="section-kicker">{t.basicSettings}</div>
+      <section className="config-section essentials-section">
+        <header className="section-heading-new">
+          <span className="section-icon"><LanguagesIcon size={18} aria-hidden="true" /></span>
+          <div>
+            <p className="section-step">STEP 02</p>
+            <h3>{t.basicSettings}</h3>
+          </div>
+        </header>
         {settingsLoadError ? (
           <p className="form-error" role="alert">
             {settingsLoadError}
@@ -570,52 +689,29 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
           <div className="output-control">
             <span className="field-label">{t.outputFormats}</span>
             <div className="chip-row">
-              <OutputChip checked={outputSrt} label="SRT" onClick={() => setOutputSrt(!outputSrt)} />
-              <OutputChip checked={outputTxt} label="TXT" onClick={() => setOutputTxt(!outputTxt)} />
-              <OutputChip checked={outputMd} label="MD" onClick={() => setOutputMd(!outputMd)} />
-              <OutputChip checked={outputJson} label="JSON" onClick={() => setOutputJson(!outputJson)} />
+              <OutputChip checked={outputSrt} disabled={outputSrt && selectedOutputCount === 1} label="SRT" onClick={() => setOutputSrt(!outputSrt)} />
+              <OutputChip checked={outputTxt} disabled={outputTxt && selectedOutputCount === 1} label="TXT" onClick={() => setOutputTxt(!outputTxt)} />
+              <OutputChip checked={outputMd} disabled={outputMd && selectedOutputCount === 1} label="MD" onClick={() => setOutputMd(!outputMd)} />
+              <OutputChip checked={outputJson} disabled={outputJson && selectedOutputCount === 1} label="JSON" onClick={() => setOutputJson(!outputJson)} />
             </div>
             <p className="output-control-hint">{t.outputHint}</p>
           </div>
-          {inputMode === "url" ? (
-            <>
-              <label>
-                {t.ytdlpFormatPreset}
-                <select
-                  aria-label={t.ytdlpFormatPreset}
-                  value={ytdlpPreset}
-                  onChange={(event) => setYtdlpPreset(event.target.value)}
-                >
-                  <option value="best">{t.ytdlpFormatBest}</option>
-                  <option value="best_1080p">{t.ytdlpFormat1080}</option>
-                  <option value="best_720p">{t.ytdlpFormat720}</option>
-                  <option value="custom">{t.ytdlpFormatCustom}</option>
-                </select>
-              </label>
-              {ytdlpPreset === "custom" ? (
-                <label>
-                  {t.ytdlpCustomFormat}
-                  <input
-                    aria-label={t.ytdlpCustomFormat}
-                    type="text"
-                    value={ytdlpCustomFormat}
-                    placeholder={t.ytdlpCustomFormatPlaceholder}
-                    onChange={(event) => setYtdlpCustomFormat(event.target.value)}
-                  />
-                </label>
-              ) : null}
-            </>
-          ) : null}
         </div>
       </section>
 
-      <section className="config-section">
-        <div className="section-kicker">{t.processingFlow}</div>
+      <section className="config-section pipeline-section">
+        <header className="section-heading-new">
+          <span className="section-icon"><Workflow size={18} aria-hidden="true" /></span>
+          <div>
+            <p className="section-step">STEP 03</p>
+            <h3>{t.processingFlow}</h3>
+          </div>
+        </header>
         <div className="flow-grid">
           {inputMode === "upload" && file && !isSrt ? (
             <article className={`flow-card ${trackMuxEnabled ? "active" : ""}`}>
-              <div className="flow-card-header">
-                <span className="flow-index">1</span>
+            <div className="flow-card-header">
+              <span className="flow-index">1</span>
                 <div className="flow-copy">
                   <h3>{t.stageLabels.track_mux}</h3>
                   <p>{t.trackMuxHint}</p>
@@ -671,43 +767,6 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
                 {inputMode === "url" ? t.stageLabels.download : isSrt ? t.skippedForSrt : t.alwaysOn}
               </span>
             </div>
-            {inputMode === "upload" && file && !isSrt && asrBackend === "whisper_cpp" ? (
-              <div className="timestamp-grid">
-                <label>
-                  {t.timestampPrecision}
-                  <select
-                    aria-label={t.timestampPrecision}
-                    value={timestampPrecision}
-                    onChange={(event) => setTimestampPrecision(event.target.value)}
-                  >
-                    {WHISPER_TIMESTAMP_PRECISIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {t.timestampPrecisionLabels[option.value] ?? option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="field-hint">
-                    {t.timestampPrecisionHints[timestampPrecision] ?? ""}
-                  </p>
-                </label>
-                {timestampPrecision === "word_dtw" ? (
-                  <label>
-                    {t.dtwPreset}
-                    <select
-                      aria-label={t.dtwPreset}
-                      value={dtwPreset}
-                      onChange={(event) => setDtwPreset(event.target.value)}
-                    >
-                      {DTW_PRESET_OPTIONS.map((preset) => (
-                        <option key={preset || "auto"} value={preset}>
-                          {preset ? preset : t.dtwAuto}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-              </div>
-            ) : null}
             <div className="flow-meta">
               <span>{t.transcriptionBackend}</span>
               <strong>{backendText}</strong>
@@ -729,48 +788,10 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
                 onChange={setMergeEnabled}
               />
             </div>
-            <div className="param-grid">
-              <label>
-                {t.minimumDuration}
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={minDurationMs}
-                  placeholder={String(MERGE_DEFAULTS.min_duration_ms)}
-                  disabled={!mergeEnabled}
-                  onChange={(event) =>
-                    setMinDurationMs(normalizeDigitsInput(event.target.value))
-                  }
-                />
-              </label>
-              <label>
-                {t.maximumCharacters}
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={maxChars}
-                  placeholder={String(MERGE_DEFAULTS.max_chars)}
-                  disabled={!mergeEnabled}
-                  onChange={(event) => setMaxChars(normalizeDigitsInput(event.target.value))}
-                />
-              </label>
-              <label>
-                {t.maximumGap}
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={maxGapMs}
-                  placeholder={String(MERGE_DEFAULTS.max_gap_ms)}
-                  disabled={!mergeEnabled}
-                  onChange={(event) => setMaxGapMs(normalizeDigitsInput(event.target.value))}
-                />
-              </label>
+            <div className="flow-meta">
+              <span>{t.maximumCharacters}</span>
+              <strong>{mergeEnabled ? maxChars : t.off}</strong>
             </div>
-            <SwitchControl
-              checked={protectSentenceEndings}
-              label={t.protectSentenceEndings}
-              onChange={setProtectSentenceEndings}
-            />
           </article>
 
           <article className={`flow-card ${enableTranslation ? "active" : ""}`}>
@@ -796,66 +817,126 @@ export function JobWorkbench({ onJobStarted, t }: Props) {
         </div>
       </section>
 
-      {enableTranslation ? (
-        <section className="config-section">
-          <div className="section-kicker">{t.providerSettings}</div>
-          <div className="provider-grid two-columns">
-            <label>
-              {t.providerBaseUrl}
-              <input
-                aria-label={t.providerBaseUrl}
-                type="url"
-                value={providerBaseUrl}
-                onChange={(event) => setProviderBaseUrl(event.target.value)}
-              />
-            </label>
-            <label>
-              {t.providerModel}
-              <input
-                aria-label={t.providerModel}
-                type="text"
-                value={providerModel}
-                onChange={(event) => setProviderModel(event.target.value)}
-              />
-            </label>
-          </div>
-          <p className="provider-footnote">
-            {providerApiKeyConfigured
-              ? t.providerApiKeyConfigured
-              : t.providerApiKeyMissing}
-          </p>
-        </section>
-      ) : null}
-      {enableTranslation ? (
-        <section className="config-section">
-          <div className="section-kicker">{t.promptAndTerminology}</div>
-          <div className="text-grid">
-            <label>
-              {t.systemPrompt}
-              <textarea
-                rows={4}
-                value={systemPrompt}
-                onChange={(event) => setSystemPrompt(event.target.value)}
-              />
-            </label>
-            <label>
-              {t.terminology}
-              <textarea
-                aria-label={t.terminology}
-                rows={4}
-                placeholder={t.terminologyPlaceholder}
-                value={terminology}
-                onChange={(event) => setTerminology(event.target.value)}
-              />
-            </label>
-          </div>
-        </section>
-      ) : null}
+      <details className="advanced-settings">
+        <summary>
+          <span className="section-icon"><SlidersHorizontal size={18} aria-hidden="true" /></span>
+          <span className="advanced-summary-copy">
+            <strong>{t.advancedSettings}</strong>
+            <small>{t.subtitleMerge} · {t.timestampSettings} · {t.providerSettings}</small>
+          </span>
+          <ChevronDown className="advanced-chevron" size={18} aria-hidden="true" />
+        </summary>
+
+        <div className="advanced-settings-body">
+          <section className="advanced-group">
+            <header className="advanced-group-heading">
+              <span className="section-icon subtle"><Captions size={17} aria-hidden="true" /></span>
+              <div>
+                <h3>{t.subtitleMerge} · {t.minimumDuration}</h3>
+                <p>{t.mergeHint}</p>
+              </div>
+            </header>
+            <div className="param-grid">
+              <label>
+                {t.minimumDuration}
+                <input type="text" inputMode="numeric" value={minDurationMs} placeholder={String(MERGE_DEFAULTS.min_duration_ms)} disabled={!mergeEnabled} onChange={(event) => setMinDurationMs(normalizeDigitsInput(event.target.value))} />
+              </label>
+              <label>
+                {t.maximumCharacters}
+                <input type="text" inputMode="numeric" value={maxChars} placeholder={String(MERGE_DEFAULTS.max_chars)} disabled={!mergeEnabled} onChange={(event) => setMaxChars(normalizeDigitsInput(event.target.value))} />
+              </label>
+              <label>
+                {t.maximumGap}
+                <input type="text" inputMode="numeric" value={maxGapMs} placeholder={String(MERGE_DEFAULTS.max_gap_ms)} disabled={!mergeEnabled} onChange={(event) => setMaxGapMs(normalizeDigitsInput(event.target.value))} />
+              </label>
+            </div>
+            <SwitchControl checked={protectSentenceEndings} label={t.protectSentenceEndings} onChange={setProtectSentenceEndings} />
+          </section>
+
+          {inputMode === "upload" && file && !isSrt && asrBackend === "whisper_cpp" ? (
+            <section className="advanced-group">
+              <header className="advanced-group-heading">
+                <span className="section-icon subtle"><AudioLines size={17} aria-hidden="true" /></span>
+                <div><h3>{t.timestampSettings}</h3></div>
+              </header>
+              <div className="timestamp-grid">
+                <label>
+                  {t.timestampPrecision}
+                  <select aria-label={t.timestampPrecision} value={timestampPrecision} onChange={(event) => setTimestampPrecision(event.target.value)}>
+                    {WHISPER_TIMESTAMP_PRECISIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{t.timestampPrecisionLabels[option.value] ?? option.label}</option>
+                    ))}
+                  </select>
+                  <p className="field-hint">{t.timestampPrecisionHints[timestampPrecision] ?? ""}</p>
+                </label>
+                {timestampPrecision === "word_dtw" ? (
+                  <label>
+                    {t.dtwPreset}
+                    <select aria-label={t.dtwPreset} value={dtwPreset} onChange={(event) => setDtwPreset(event.target.value)}>
+                      {DTW_PRESET_OPTIONS.map((preset) => <option key={preset || "auto"} value={preset}>{preset || t.dtwAuto}</option>)}
+                    </select>
+                  </label>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+
+          {enableTranslation ? (
+            <section className="advanced-group">
+              <header className="advanced-group-heading">
+                <span className="section-icon subtle"><Settings2 size={17} aria-hidden="true" /></span>
+                <div><h3>{t.providerSettings}</h3><p>{providerApiKeyConfigured ? t.providerApiKeyConfigured : t.providerApiKeyMissing}</p></div>
+              </header>
+              <div className="provider-grid two-columns">
+                <label>
+                  {t.providerBaseUrl}
+                  <input aria-label={t.providerBaseUrl} type="url" value={providerBaseUrl} onChange={(event) => setProviderBaseUrl(event.target.value)} />
+                </label>
+                <label>
+                  {t.providerModel}
+                  <input aria-label={t.providerModel} type="text" value={providerModel} onChange={(event) => setProviderModel(event.target.value)} />
+                </label>
+              </div>
+            </section>
+          ) : null}
+
+          {enableTranslation ? (
+            <section className="advanced-group">
+              <header className="advanced-group-heading">
+                <span className="section-icon subtle"><MessageSquareText size={17} aria-hidden="true" /></span>
+                <div><h3>{t.promptAndTerminology}</h3></div>
+              </header>
+              <div className="text-grid">
+                <label>
+                  {t.systemPrompt}
+                  <textarea rows={4} value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} />
+                </label>
+                <label>
+                  {t.terminology}
+                  <textarea aria-label={t.terminology} rows={4} placeholder={t.terminologyPlaceholder} value={terminology} onChange={(event) => setTerminology(event.target.value)} />
+                </label>
+              </div>
+            </section>
+          ) : null}
+        </div>
+      </details>
+
       {error ? (
         <p className="form-error" role="alert">
           {error}
         </p>
       ) : null}
+
+      <div className="submit-bar">
+        <div className="submit-note">
+          <ShieldCheck size={18} aria-hidden="true" />
+          <span>{t.aboutLocalOnly}</span>
+        </div>
+        <button className="primary-button start-button" type="submit" disabled={submitting || !canSubmit}>
+          <Play size={17} fill="currentColor" aria-hidden="true" />
+          {submitting ? t.starting : t.startJob}
+        </button>
+      </div>
     </form>
   );
 }

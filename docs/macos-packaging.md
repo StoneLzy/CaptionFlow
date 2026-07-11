@@ -83,7 +83,7 @@ After a successful build, the deliverables are copied to:
 
 ```text
 release/CaptionFlow.app
-release/CaptionFlow_0.1.0_aarch64.dmg
+release/CaptionFlow_0.1.1_aarch64.dmg
 ```
 
 `release/CaptionFlow.app` has been verified to start its backend runtime and return `status: ok` from `/api/health`.

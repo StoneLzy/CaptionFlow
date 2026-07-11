@@ -1,6 +1,6 @@
 [package]
 name = "captionflow"
-version = "0.1.0"
+version = "0.1.1"
 description = "A local-first macOS workbench for video transcription and subtitle translation."
 authors = ["StoneLzy"]
 edition = "2021"

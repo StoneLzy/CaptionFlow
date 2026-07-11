@@ -111,6 +111,7 @@ export interface Translations {
   processingFlow: string;
   providerSettings: string;
   promptAndTerminology: string;
+  advancedSettings: string;
   on: string;
   off: string;
   alwaysOn: string;
@@ -119,6 +120,7 @@ export interface Translations {
   mergeHint: string;
   translationHint: string;
   outputHint: string;
+  outputFormatRequiredError: string;
   translationBatchDetail: (batch: number, total: number) => string;
   stageCount: (processed: number, total: number) => string;
   trackMux: string;
@@ -178,8 +180,8 @@ export interface Translations {
 
 export const t: Record<UiLanguage, Translations> = {
   zh: {
-    appTitle: "翻译工作台",
-    appSubtitle: "本地转写、字幕合并与翻译",
+    appTitle: "CaptionFlow",
+    appSubtitle: "从视频到字幕，一条流完成",
     settings: "设置",
     settingsTitle: "应用设置",
     settingsDescription: "管理 WhisperKit 运行时和翻译服务配置。",
@@ -227,15 +229,15 @@ export const t: Record<UiLanguage, Translations> = {
     aboutGithub: "GitHub 仓库",
     aboutReadme: "README",
     aboutMaturityDoc: "功能成熟度说明",
-    aboutVersion: "版本 0.1.0",
+    aboutVersion: "版本 0.1.1",
     closeAbout: "关闭",
     languageZh: "中文",
     languageEn: "EN",
     historyTitle: "历史",
     historyCount: (count) => `${count} 个任务`,
     noJobs: "暂无任务。",
-    newJob: "新建任务",
-    newJobHint: "视频或 SRT，一页完成配置。",
+    newJob: "创建字幕任务",
+    newJobHint: "导入视频、SRT 或在线链接，其余交给 CaptionFlow。",
     jobNameLabel: "任务名称",
     jobNamePlaceholder: "可选，不填则自动命名",
     jobNameHint: "用于历史记录显示；不填时使用文件名、URL 或下载标题。",
@@ -245,7 +247,7 @@ export const t: Record<UiLanguage, Translations> = {
     chooseOutputDirectory: "选择",
     clearOutputDirectory: "清空",
     fileLabel: "视频或 SRT 文件",
-    fileHint: "选择视频进行转写，或选择 SRT 直接合并/翻译。",
+    fileHint: "拖入视频或 SRT，或点击选择文件",
     sourceLanguage: "源语言",
     targetLanguage: "目标语言",
     outputFormats: "输出格式",
@@ -295,6 +297,7 @@ export const t: Record<UiLanguage, Translations> = {
     processingFlow: "处理流程",
     providerSettings: "Provider 设置",
     promptAndTerminology: "提示词与术语",
+    advancedSettings: "高级设置",
     on: "开启",
     off: "关闭",
     alwaysOn: "始终开启",
@@ -303,6 +306,7 @@ export const t: Record<UiLanguage, Translations> = {
     mergeHint: "合并过短或过碎的字幕行，让阅读节奏更稳定。",
     translationHint: "调用兼容 OpenAI 的模型，把字幕翻译为目标语言。",
     outputHint: "选择要导出的字幕和文本格式。",
+    outputFormatRequiredError: "请至少选择一种输出格式。",
     translationBatchDetail: (batch, total) => `翻译批次 ${batch}/${total}`,
     stageCount: (processed, total) => `${processed} / ${total} 条字幕`,
     trackMux: "音轨合成",
@@ -405,8 +409,8 @@ export const t: Record<UiLanguage, Translations> = {
     },
   },
   en: {
-    appTitle: "Translation Workbench",
-    appSubtitle: "Local transcription, subtitle merge, and translation",
+    appTitle: "CaptionFlow",
+    appSubtitle: "From video to subtitles, in one flow",
     settings: "Settings",
     settingsTitle: "Application settings",
     settingsDescription: "Manage the WhisperKit runtime and translation provider.",
@@ -455,15 +459,15 @@ export const t: Record<UiLanguage, Translations> = {
     aboutGithub: "GitHub repository",
     aboutReadme: "README",
     aboutMaturityDoc: "Maturity audit",
-    aboutVersion: "Version 0.1.0",
+    aboutVersion: "Version 0.1.1",
     closeAbout: "Close",
     languageZh: "中文",
     languageEn: "EN",
     historyTitle: "History",
     historyCount: (count) => `${count} jobs`,
     noJobs: "No jobs yet.",
-    newJob: "New job",
-    newJobHint: "Configure video or SRT jobs in one place.",
+    newJob: "Create subtitle job",
+    newJobHint: "Bring a video, SRT, or online link — CaptionFlow handles the rest.",
     jobNameLabel: "Job name",
     jobNamePlaceholder: "Optional; auto-named if empty",
     jobNameHint: "Used in job history. Empty uses the file name, URL, or download title.",
@@ -473,7 +477,7 @@ export const t: Record<UiLanguage, Translations> = {
     chooseOutputDirectory: "Choose",
     clearOutputDirectory: "Clear",
     fileLabel: "Video or SRT file",
-    fileHint: "Choose a video for transcription, or an SRT for merge/translation.",
+    fileHint: "Drop a video or SRT here, or click to browse",
     sourceLanguage: "Source language",
     targetLanguage: "Target language",
     outputFormats: "Output formats",
@@ -523,6 +527,7 @@ export const t: Record<UiLanguage, Translations> = {
     processingFlow: "Processing flow",
     providerSettings: "Provider settings",
     promptAndTerminology: "Prompt and terminology",
+    advancedSettings: "Advanced settings",
     on: "On",
     off: "Off",
     alwaysOn: "Always on",
@@ -531,6 +536,7 @@ export const t: Record<UiLanguage, Translations> = {
     mergeHint: "Merge short or fragmented subtitle lines for steadier reading.",
     translationHint: "Call an OpenAI-compatible model to translate subtitles.",
     outputHint: "Choose subtitle and text artifacts to export.",
+    outputFormatRequiredError: "Choose at least one output format.",
     translationBatchDetail: (batch, total) => `Translation batch ${batch}/${total}`,
     stageCount: (processed, total) => `${processed} / ${total} subtitles`,
     trackMux: "Track mux",

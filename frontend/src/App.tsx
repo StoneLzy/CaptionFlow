@@ -1,5 +1,25 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
+  AlertTriangle,
+  Captions,
+  CheckCircle2,
+  CircleHelp,
+  Download,
+  FileText,
+  FolderOpen,
+  Languages,
+  Pencil,
+  Plus,
+  RefreshCw,
+  ScrollText,
+  Settings2,
+  ShieldCheck,
+  Sparkles,
+  Square,
+  Trash2,
+} from "lucide-react";
+import {
   cancelJob,
   deleteJob,
   fetchHealth,
@@ -45,6 +65,25 @@ function isDownloadableOutput(key: string): boolean {
   return key !== "download_title" && key !== "ytdlp_log";
 }
 
+function jobPercent(job: JobSummary): number {
+  if (job.status === "completed") {
+    return 100;
+  }
+  if (job.progress.length === 0) {
+    return 0;
+  }
+  const totalPercent = job.progress.reduce((sum, stage) => {
+    if (typeof stage.percent === "number") {
+      return sum + stage.percent;
+    }
+    if (stage.status === "completed" || stage.status === "skipped") {
+      return sum + 100;
+    }
+    return sum;
+  }, 0);
+  return Math.round(totalPercent / job.progress.length);
+}
+
 export function App() {
   const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
@@ -67,6 +106,7 @@ export function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsRevision, setSettingsRevision] = useState(0);
+  const [workspaceMode, setWorkspaceMode] = useState<"create" | "detail">("create");
   const labels = t[language];
 
   const refreshJobs = useCallback(async () => {
@@ -113,6 +153,7 @@ export function App() {
   useEffect(() => {
     if (jobs.length === 0) {
       setSelectedJobId(null);
+      setWorkspaceMode("create");
       return;
     }
     if (selectedJobId && jobs.some((job) => job.id === selectedJobId)) {
@@ -120,6 +161,7 @@ export function App() {
     }
     const activeJob = jobs.find((job) => !["completed", "failed", "cancelled"].includes(job.status));
     setSelectedJobId((activeJob ?? jobs[0]).id);
+    setWorkspaceMode("detail");
   }, [jobs, selectedJobId]);
 
   const selectedJob = jobs.find((job) => job.id === selectedJobId) ?? null;
@@ -130,12 +172,23 @@ export function App() {
     setRenameError(null);
   }, [selectedJobId, selectedJob?.filename]);
 
-  function handleJobStarted(job: JobSummary) {
-    setSelectedJobId(job.id);
+  function clearJobFeedback() {
     setActiveLog(null);
     setFolderError(null);
     setRetryError(null);
     setActionError(null);
+  }
+
+  function handleJobCreated(job: JobSummary) {
+    setSelectedJobId(job.id);
+    clearJobFeedback();
+    setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
+  }
+
+  function handleJobStarted(job: JobSummary) {
+    setSelectedJobId(job.id);
+    setWorkspaceMode("detail");
+    clearJobFeedback();
     setJobs((current) => [job, ...current.filter((item) => item.id !== job.id)]);
     void refreshJobs();
   }
@@ -213,6 +266,14 @@ export function App() {
   }
 
   async function handleDeleteJob(jobId: string) {
+    const confirmed = window.confirm(
+      language === "zh"
+        ? "确定删除这个任务吗？任务目录及其中产物将被永久删除。"
+        : "Delete this job? Its job directory and generated files will be permanently removed.",
+    );
+    if (!confirmed) {
+      return;
+    }
     setActionError(null);
     setDeleting(true);
     try {
@@ -220,6 +281,7 @@ export function App() {
       const nextJobs = await refreshJobs();
       if (selectedJobId === jobId) {
         setSelectedJobId(nextJobs?.[0]?.id ?? null);
+        setWorkspaceMode(nextJobs?.length ? "detail" : "create");
       }
       setActiveLog(null);
     } catch (error) {
@@ -267,25 +329,44 @@ export function App() {
   const outputEntries = selectedJob
     ? Object.entries(selectedJob.outputs).filter(([key]) => key !== "download_title")
     : [];
+  const overallPercent = selectedJob ? jobPercent(selectedJob) : 0;
+  const activeStage = selectedJob?.progress.find((stage) => stage.status === "running") ?? null;
 
   return (
     <main className="shell">
       <header className="topbar">
-        <div>
-          <h1>{labels.appTitle}</h1>
-          <p>{labels.appSubtitle}</p>
-          {backendDegraded ? (
-            <p className="topbar-warning" role="alert">
-              {labels.backendDegraded}
-            </p>
-          ) : null}
+        <div className="brand-block">
+          <div className="brand-mark" aria-hidden="true">
+            <Captions size={25} strokeWidth={2.2} />
+          </div>
+          <div className="brand-wordmark">
+            <h1>{labels.appTitle}</h1>
+            <p>{labels.appSubtitle}</p>
+          </div>
         </div>
         <div className="topbar-actions">
-          <button className="about-trigger" type="button" onClick={() => setSettingsOpen(true)}>
-            {labels.settings}
+          <div
+            className={`health-pill${backendDegraded ? " degraded" : ""}`}
+            role={backendDegraded ? "alert" : undefined}
+            title={backendDegraded ? labels.backendDegraded : undefined}
+          >
+            {backendDegraded ? (
+              <AlertTriangle size={14} aria-hidden="true" />
+            ) : (
+              <CheckCircle2 size={14} aria-hidden="true" />
+            )}
+            <span>
+              {backendDegraded
+                ? language === "zh" ? "服务需要检查" : "Service needs attention"
+                : language === "zh" ? "本地引擎已连接" : "Local engine ready"}
+            </span>
+          </div>
+          <button className="topbar-button" type="button" onClick={() => setSettingsOpen(true)}>
+            <Settings2 size={16} aria-hidden="true" />
+            <span>{labels.settings}</span>
           </button>
-          <button className="about-trigger" type="button" onClick={() => setAboutOpen(true)}>
-            {labels.about}
+          <button className="topbar-button icon-only" type="button" aria-label={labels.about} onClick={() => setAboutOpen(true)}>
+            <CircleHelp size={17} aria-hidden="true" />
           </button>
           <div className="language-toggle" aria-label="Language">
             <button
@@ -313,25 +394,63 @@ export function App() {
         t={labels}
       />
       <div className="layout">
-        <JobHistory
-          jobs={jobs}
-          selectedJobId={selectedJobId}
-          onSelectJob={setSelectedJobId}
-          t={labels}
-          loading={jobsLoading}
-          loadError={jobsLoadError}
-        />
-        <div className="main-panel">
-          <JobWorkbench
-            key={settingsRevision}
-            onJobStarted={handleJobStarted}
+        <div className="sidebar-shell">
+          <button
+            className={`new-job-nav${workspaceMode === "create" ? " active" : ""}`}
+            type="button"
+            aria-current={workspaceMode === "create" ? "page" : undefined}
+            onClick={() => {
+              setWorkspaceMode("create");
+              setActiveLog(null);
+            }}
+          >
+            <span className="new-job-nav-icon" aria-hidden="true">
+              <Plus size={19} />
+            </span>
+            <span className="new-job-nav-copy">
+              <strong>{labels.newJob}</strong>
+              <small>{language === "zh" ? "开始一条新的字幕工作流" : "Start a new subtitle flow"}</small>
+            </span>
+          </button>
+          <JobHistory
+            jobs={jobs}
+            selectedJobId={workspaceMode === "detail" ? selectedJobId : null}
+            onSelectJob={(jobId) => {
+              setSelectedJobId(jobId);
+              setWorkspaceMode("detail");
+              clearJobFeedback();
+            }}
             t={labels}
+            loading={jobsLoading}
+            loadError={jobsLoadError}
           />
+          <div className="sidebar-trust-note">
+            <ShieldCheck size={16} aria-hidden="true" />
+            <span>{language === "zh" ? "文件与任务数据保留在本机" : "Files and job data stay on this Mac"}</span>
+          </div>
         </div>
-        <aside className="progress-panel">
-          {selectedJob ? (
-            <section className="job-detail">
-              <p className="panel-eyebrow">{labels.selectedJob}</p>
+
+        <section className="workspace">
+          {workspaceMode === "create" || !selectedJob ? (
+            <JobWorkbench
+              key={settingsRevision}
+              onJobCreated={handleJobCreated}
+              onJobStarted={handleJobStarted}
+              t={labels}
+            />
+          ) : (
+            <div className="job-workspace">
+              <header className="job-hero">
+                <div className="job-hero-topline">
+                  <p className="panel-eyebrow">
+                    <Activity size={14} aria-hidden="true" />
+                    {labels.selectedJob}
+                  </p>
+                  <span className={`job-status-pill status-${selectedJob.status}`}>
+                    <span aria-hidden="true" />
+                    {labels.jobStatusLabels[selectedJob.status]}
+                  </span>
+                </div>
               {isRenaming ? (
                 <div className="job-title-edit">
                   <input
@@ -343,7 +462,7 @@ export function App() {
                   />
                   <div className="job-title-edit-actions">
                     <button
-                      className="secondary-button"
+                      className="primary-button compact"
                       type="button"
                       disabled={renaming}
                       onClick={() => void handleRenameJob(selectedJob.id)}
@@ -351,7 +470,7 @@ export function App() {
                       {renaming ? labels.saveRename : labels.saveRename}
                     </button>
                     <button
-                      className="secondary-button"
+                      className="ghost-button compact"
                       type="button"
                       disabled={renaming}
                       onClick={() => {
@@ -368,15 +487,16 @@ export function App() {
                 <div className="job-title-row">
                   <h2 className="job-title-full">{selectedJob.filename}</h2>
                   <button
-                    className="secondary-button job-rename-button"
+                    className="icon-button job-rename-button"
                     type="button"
+                    aria-label={labels.renameJob}
                     onClick={() => {
                       setRenameValue(selectedJob.filename);
                       setIsRenaming(true);
                       setRenameError(null);
                     }}
                   >
-                    {labels.renameJob}
+                    <Pencil size={16} aria-hidden="true" />
                   </button>
                 </div>
               )}
@@ -385,136 +505,183 @@ export function App() {
                   {renameError}
                 </p>
               ) : null}
-              <p className="job-status">
-                {labels.status}: {labels.jobStatusLabels[selectedJob.status]}
-              </p>
-              <p className="job-meta">
-                {labels.createdAt}: {formatTimestamp(selectedJob.created_at, language)}
-              </p>
-              <div className="job-actions">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => void handleOpenOutputFolder(selectedJob.id)}
-                >
-                  {labels.openOutputFolder}
-                </button>
-                {selectedJob.status === "running" ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={cancelling}
-                    onClick={() => void handleCancelJob(selectedJob.id)}
-                  >
-                    {cancelling ? labels.cancelJob : labels.cancelJob}
-                  </button>
-                ) : null}
-                {["failed", "completed", "cancelled"].includes(selectedJob.status) ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={rerunning}
-                    onClick={() => void handleRerunJob(selectedJob.id)}
-                  >
-                    {rerunning ? labels.starting : labels.rerunJob}
-                  </button>
-                ) : null}
-                {canRetryTranslation(selectedJob) ? (
-                  <button
-                    className="secondary-button"
-                    type="button"
-                    disabled={retrying || selectedJob.status === "running"}
-                    onClick={() => void handleRetryTranslation(selectedJob.id)}
-                  >
-                    {retrying ? labels.retryingTranslation : labels.retryTranslation}
-                  </button>
-                ) : null}
-                {selectedJob.status !== "running" ? (
-                  <button
-                    className="danger-button"
-                    type="button"
-                    disabled={deleting}
-                    onClick={() => void handleDeleteJob(selectedJob.id)}
-                  >
-                    {deleting ? labels.deleteJob : labels.deleteJob}
-                  </button>
-                ) : null}
-              </div>
-              {canRetryTranslation(selectedJob) ? (
-                <p className="job-hint">{labels.retryTranslationHint}</p>
-              ) : null}
-              {folderError ? (
-                <p className="form-error" role="alert">
-                  {folderError}
-                </p>
-              ) : null}
-              {retryError ? (
-                <p className="form-error" role="alert">
-                  {retryError}
-                </p>
-              ) : null}
-              {actionError ? (
-                <p className="form-error" role="alert">
-                  {actionError}
-                </p>
-              ) : null}
-              {selectedJob.error_summary ? (
-                <p className="form-error" role="alert">
-                  {selectedJob.error_summary}
-                </p>
-              ) : null}
-              {outputEntries.length > 0 ? (
-                <div className="outputs-panel">
-                  <h3>{labels.outputsTitle}</h3>
-                  <ul className="outputs-list">
-                    {outputEntries.map(([key, path]) => (
-                      <li key={key}>
-                        <span>{outputLabel(key, language)}</span>
-                        {isDownloadableOutput(key) ? (
-                          <a
-                            href={outputDownloadUrl(selectedJob.id, key)}
-                            download
-                          >
-                            {labels.downloadOutput}
-                          </a>
-                        ) : (
-                          <span className="output-path">{path.split("/").pop()}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                <div className="job-hero-meta">
+                  <span>{labels.createdAt}: {formatTimestamp(selectedJob.created_at, language)}</span>
+                  {activeStage ? (
+                    <span>{language === "zh" ? "当前阶段" : "Current stage"}: {labels.stageLabels[activeStage.name]}</span>
+                  ) : null}
                 </div>
-              ) : null}
-              <div className="log-actions">
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => void handleViewLog(selectedJob.id, "ytdlp")}
-                >
-                  {labels.viewLog}: yt-dlp
-                </button>
-                <button
-                  className="secondary-button"
-                  type="button"
-                  onClick={() => void handleViewLog(selectedJob.id, "whisperkit")}
-                >
-                  {labels.viewLog}: WhisperKit
-                </button>
+                <div className="overall-progress-block">
+                  <div className="overall-progress-copy">
+                    <span>{language === "zh" ? "整体进度" : "Overall progress"}</span>
+                    <strong>{overallPercent}%</strong>
+                  </div>
+                  <div className="overall-progress-track" aria-hidden="true">
+                    <span style={{ width: `${overallPercent}%` }} />
+                  </div>
+                </div>
+              </header>
+
+              <div className="job-detail-grid">
+                <div className="job-detail-main">
+                  <section className="detail-card progress-card">
+                    <header className="detail-card-heading">
+                      <span className="detail-card-icon"><Activity size={17} aria-hidden="true" /></span>
+                      <div>
+                        <p className="panel-eyebrow">{language === "zh" ? "PROCESS" : "PROCESS"}</p>
+                        <h3>{labels.progress}</h3>
+                      </div>
+                    </header>
+                    <ProgressTimeline stages={selectedJob.progress} t={labels} />
+                  </section>
+                  {activeLog ? (
+                    <section className="detail-card log-card">
+                      <header className="detail-card-heading">
+                        <span className="detail-card-icon"><ScrollText size={17} aria-hidden="true" /></span>
+                        <div>
+                          <p className="panel-eyebrow">LOG</p>
+                          <h3>{language === "zh" ? "运行日志" : "Runtime log"}</h3>
+                        </div>
+                      </header>
+                      <pre className="job-log" role="region" aria-label="Job log">
+                        {activeLog}
+                      </pre>
+                    </section>
+                  ) : null}
+                </div>
+
+                <aside className="job-detail-aside">
+                  <section className="detail-card action-card">
+                    <header className="detail-card-heading compact-heading">
+                      <span className="detail-card-icon"><Sparkles size={17} aria-hidden="true" /></span>
+                      <h3>{language === "zh" ? "任务操作" : "Job actions"}</h3>
+                    </header>
+                    <button
+                      className="primary-button wide"
+                      type="button"
+                      onClick={() => void handleOpenOutputFolder(selectedJob.id)}
+                    >
+                      <FolderOpen size={17} aria-hidden="true" />
+                      {labels.openOutputFolder}
+                    </button>
+                    <div className="job-actions">
+                      {selectedJob.status === "running" ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={cancelling}
+                          onClick={() => void handleCancelJob(selectedJob.id)}
+                        >
+                          <Square size={14} aria-hidden="true" />
+                          {labels.cancelJob}
+                        </button>
+                      ) : null}
+                      {selectedJob.status === "created" ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={rerunning}
+                          onClick={() => void handleRerunJob(selectedJob.id)}
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          {rerunning ? labels.starting : labels.startJob}
+                        </button>
+                      ) : null}
+                      {["failed", "completed", "cancelled"].includes(selectedJob.status) ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={rerunning}
+                          onClick={() => void handleRerunJob(selectedJob.id)}
+                        >
+                          <RefreshCw size={15} aria-hidden="true" />
+                          {rerunning ? labels.starting : labels.rerunJob}
+                        </button>
+                      ) : null}
+                      {canRetryTranslation(selectedJob) ? (
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={retrying || selectedJob.status === "running"}
+                          onClick={() => void handleRetryTranslation(selectedJob.id)}
+                        >
+                          <Languages size={15} aria-hidden="true" />
+                          {retrying ? labels.retryingTranslation : labels.retryTranslation}
+                        </button>
+                      ) : null}
+                      {selectedJob.status !== "running" ? (
+                        <button
+                          className="danger-button"
+                          type="button"
+                          disabled={deleting}
+                          onClick={() => void handleDeleteJob(selectedJob.id)}
+                        >
+                          <Trash2 size={15} aria-hidden="true" />
+                          {labels.deleteJob}
+                        </button>
+                      ) : null}
+                    </div>
+                    {canRetryTranslation(selectedJob) ? (
+                      <p className="job-hint">{labels.retryTranslationHint}</p>
+                    ) : null}
+                    {[folderError, retryError, actionError, selectedJob.error_summary]
+                      .filter(Boolean)
+                      .map((message) => (
+                        <p className="form-error" role="alert" key={message}>{message}</p>
+                      ))}
+                  </section>
+
+                  <section className="detail-card outputs-panel">
+                    <header className="detail-card-heading compact-heading">
+                      <span className="detail-card-icon"><FileText size={17} aria-hidden="true" /></span>
+                      <h3>{labels.outputsTitle}</h3>
+                      {outputEntries.length ? <span className="card-count">{outputEntries.length}</span> : null}
+                    </header>
+                    {outputEntries.length > 0 ? (
+                      <ul className="outputs-list">
+                        {outputEntries.map(([key, path]) => (
+                          <li key={key}>
+                            <span className="output-file-icon"><FileText size={15} aria-hidden="true" /></span>
+                            <span className="output-file-copy">
+                              <strong>{outputLabel(key, language)}</strong>
+                              <small>{path.split("/").pop()}</small>
+                            </span>
+                            {isDownloadableOutput(key) ? (
+                              <a
+                                href={outputDownloadUrl(selectedJob.id, key)}
+                                download
+                                aria-label={`${labels.downloadOutput}: ${outputLabel(key, language)}`}
+                              >
+                                <Download size={15} aria-hidden="true" />
+                              </a>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="empty-card-copy">{language === "zh" ? "任务完成后，产物会显示在这里。" : "Outputs will appear here when the job is ready."}</p>
+                    )}
+                  </section>
+
+                  <section className="detail-card logs-panel">
+                    <header className="detail-card-heading compact-heading">
+                      <span className="detail-card-icon"><ScrollText size={17} aria-hidden="true" /></span>
+                      <h3>{language === "zh" ? "诊断日志" : "Diagnostic logs"}</h3>
+                    </header>
+                    <div className="log-actions">
+                      <button className="ghost-button" type="button" onClick={() => void handleViewLog(selectedJob.id, "ytdlp")}>
+                        {labels.viewLog}: yt-dlp
+                      </button>
+                      <button className="ghost-button" type="button" onClick={() => void handleViewLog(selectedJob.id, "whisperkit")}>
+                        {labels.viewLog}: WhisperKit
+                      </button>
+                    </div>
+                  </section>
+                </aside>
               </div>
-              {activeLog ? (
-                <pre className="job-log" role="region" aria-label="Job log">
-                  {activeLog}
-                </pre>
-              ) : null}
-              <ProgressTimeline stages={selectedJob.progress} t={labels} />
-            </section>
-          ) : (
-            <section className="job-detail empty-progress">
-              <p className="panel-eyebrow">{labels.progress}</p>
-              <h2>{labels.noSelection}</h2>
-            </section>
+            </div>
           )}
-        </aside>
+        </section>
       </div>
     </main>
   );
